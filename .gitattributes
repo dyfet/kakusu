@@ -1,0 +1,12 @@
+*           text eol=lf
+
+CMakePresets.json export-ignore
+cmake/deploy.cmake export-ignore
+vcpkg.json export-ignore
+.woodpecker.yml export-ignore
+.gitattributes export-ignore
+.gitignore export-ignore
+.gitea/ export-ignore
+.github/ export-ignore
+.gitlab-ci.yml export-ignore
+.gitlab/ export-ignore

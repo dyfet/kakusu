@@ -1,0 +1,1 @@
+-Isrc --check-level=exhaustive --suppress="*:vendor/*" -D__cplusplus=299999 -UDEBUG --suppress=constVariablePointer --suppress=assertWithSideEffect --suppress=preprocessorErrorDirective --suppress=unassignedVariable --inline-suppr --enable=style,performance,warning,portability
