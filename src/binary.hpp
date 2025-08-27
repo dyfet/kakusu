@@ -11,7 +11,7 @@ using error = std::runtime_error;
 using range = std::out_of_range;
 using invalid = std::invalid_argument;
 using overflow = std::overflow_error;
-} // end namespace
+} // namespace kakusu
 
 #if defined(BUSUTO_RUNTIME_SYSTEM) || defined(KAKUSU_RUNTIME_BUSUTO)
 #include <busuto/binary.hpp>
@@ -30,6 +30,16 @@ template <typename Binary>
 inline auto to_hex(const Binary& bin) {
     return encode_hex(to_byte_span(bin));
 }
+} // namespace kakusu
+
+#elif defined(HITYCHO_RUNTIME_SYSTEM) || defined(KAKUSU_RUNTIME_HITYCHO)
+
+#include <hitycho/binary.hpp>
+#include <hitycho/system.hpp>
+
+namespace kakusu {
+using namespace hitycho::util;
+using byte_array = hitycho::byte_array;
 } // namespace kakusu
 
 #else

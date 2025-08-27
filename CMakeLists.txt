@@ -40,6 +40,13 @@ add_executable(test_binary test/binary.cpp src/binary.hpp)
 add_test(NAME test-binary COMMAND test_binary)
 target_link_libraries(test_binary)
 
+if(OPENSSL_FOUND AND HPX_FOUND)
+add_executable(test_hitycho test/hitycho.cpp src/crypto.hpp)
+add_test(NAME test-hitycho COMMAND test_hitycho)
+target_include_directories(test_hitycho PRIVATE ${HPX_APPLICATION_INCLUDE_DIRS})
+target_link_libraries(test_hitycho PRIVATE OpenSSL::Crypto HPX::hpx HPX::wrap_main)
+endif()
+
 if(OPENSSL_FOUND AND BUSUTO_FOUND)
 add_executable(test_busuto test/busuto.cpp src/crypto.hpp)
 add_test(NAME test-busuto COMMAND test_busuto)

@@ -2,7 +2,7 @@
 // Copyright (C) 2025 David Sugar <tychosoft@gmail.com>
 
 #define KAKUSU_CRYPTO_OPENSSL
-#define KAKUSU_RUNTIME_BUSUTO
+#define KAKUSU_RUNTIME_HITYCHO
 
 #undef NDEBUG
 #include "hash.hpp"
@@ -10,7 +10,7 @@
 #include <cassert>
 
 using namespace kakusu;
-using namespace busuto;
+using namespace hitycho;
 
 namespace {
 void test_random_openssl() {
@@ -39,23 +39,30 @@ void test_hash_ring() {
 }
 
 void test_digest_stream() {
-    digest_stream<sha256_t> sha256;
-    sha256 << "hello";
-    auto hex = to_hex(sha256);
-    auto verify = make_sha256(std::string_view("hello"));
+    digest_stream<sha256_t> digest;
+    digest << "hello";
+    auto hex = to_hex(digest);
+    auto verify = kakusu::make_sha256(std::string_view("hello"));
     auto out = verify.to_hex();
     assert(out == hex);
 }
 } // end namespace
 
-auto main(int /* argc */, char ** /* argv */) -> int {
+// cppcheck-suppress constParameterReference
+auto hpx_main(hpx::program_options::variables_map& args) -> int { // NOLINT
     try {
         startup();
         test_random_openssl();
         test_hash_ring();
         test_digest_stream();
     } catch (...) {
-        return -1;
+        hpx::finalize();
+        exit(-1);
     }
-    return 0;
+    return hpx::finalize();
+    ;
+}
+
+auto main(int argc, char *argv[]) -> int {
+    return hpx::init(argc, argv);
 }

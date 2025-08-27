@@ -2,7 +2,7 @@
 
 Kakusu is a header-only cryptographic toolkit for C++. It may be built and used
 either stand-alone with a C++17 compiler, or integrated with runtimes such as
-the Busuto C++ project, and soon with Hitycho for HPX applications.
+the Busuto C++ project, and with Hitycho for HPX applications.
 
 Kakusu makes use of a backend crypto toolkit that can be selected at compile
 time. Cryupto backends currently includes either OpenSSL / Libressl, Wolfssl,
@@ -13,10 +13,8 @@ change the backend being used, without having to change application code.
 
 The decision to make Busuto the successor to ModernCLI, and the fact that
 Kakusu can be compiled stand-alone with it's own implimentation of byte\_array,
-is why the backported byte\_array was removed from ModernCLI. Hitycho does also
-have a C++17 implimentation of byte\_array and friends, so I will likely
-adapt that for Hitycho rather than the built-in one, much like was done for
-Busuto.
+is why the backported byte\_array was removed from ModernCLI. Hitycho also has
+have a C++17 implimentation of byte\_array and friends.
 
 ## Dependencies
 
