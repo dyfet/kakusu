@@ -40,6 +40,7 @@
 
 #ifdef KAKUSU_CRYPTO_MINICRYPT
 #define KAKUSU_CRYPTO_CONFIGURED
+#include <minicrypt/random.h>
 #include <minicrypt/hmac.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -116,9 +117,6 @@ public:
             throw error("Random fill failed");
         }
     };
-
-private:
-    // nothing for openssl...
 };
 
 template <typename Binary>
@@ -218,13 +216,9 @@ inline void startup() {
 class random_context final {
 public:
     random_context() {
-        if (wc_InitRng(&rng) != 0) throw error("rng failed init");
+        if (wc_InitRng(&rng_) != 0) throw error("rng failed init");
     }
-
-    ~random_context() {
-        wc_FreeRng(&rng);
-    }
-
+    ~random_context() { wc_FreeRng(&rng_); }
     random_context(const random_context&) = delete;
     auto operator=(const random_context&) -> auto& = delete;
 
@@ -233,11 +227,11 @@ public:
         const auto len = buf.size();
         auto ptr = reinterpret_cast<unsigned char *>(buf.data());
         if (len > 0)
-            if (wc_RNG_GenerateBlock(&rng, ptr, len) != 0) throw error("Randon fill failed");
+            if (wc_RNG_GenerateBlock(&rng_, ptr, len) != 0) throw error("Randon fill failed");
     }
 
 private:
-    WC_RNG rng{};
+    WC_RNG rng_{};
 };
 
 template <typename Binary>
@@ -270,22 +264,13 @@ inline auto make_sha512(const Binary& input) -> byte_array {
     return out;
 }
 
-class wc_HmacGuard {
+class hmac_context final {
 public:
-    wc_HmacGuard() {
-        wc_HmacInit(&hmac_, nullptr, INVALID_DEVID);
-    }
-
-    ~wc_HmacGuard() {
-        wc_HmacFree(&hmac_);
-    }
-
-    operator Hmac *() {
-        return &hmac_;
-    }
-
-    Hmac *operator->() { return &hmac_; }
-    Hmac& operator*() { return hmac_; }
+    hmac_context(const hmac_context&) = delete;
+    auto operator=(const hmac_context&) -> hmac_context& = delete;
+    hmac_context() { wc_HmacInit(&hmac_, nullptr, INVALID_DEVID); }
+    ~hmac_context() { wc_HmacFree(&hmac_); }
+    operator Hmac *() { return &hmac_; }
 
 private:
     Hmac hmac_{};
@@ -297,7 +282,7 @@ inline auto make_hmac256(const Binary& key, const Binary& input) -> byte_array {
     auto const get = reinterpret_cast<const unsigned char *>(input.data());
     auto const kp = reinterpret_cast<const unsigned char *>(key.data());
     auto put = reinterpret_cast<unsigned char *>(out.data());
-    wc_HmacGuard hmac;
+    hmac_context hmac;
     wc_HmacInit(hmac, NULL, INVALID_DEVID);
     if (wc_HmacSetKey(hmac, WC_SHA256, kp, key.size()) != 0)
         throw error("HMAC256 key setup failed");
@@ -314,7 +299,7 @@ inline auto make_hmac512(const Binary& key, const Binary& input) -> byte_array {
     auto const get = reinterpret_cast<const unsigned char *>(input.data());
     auto const kp = reinterpret_cast<const unsigned char *>(key.data());
     auto put = reinterpret_cast<unsigned char *>(out.data());
-    wc_HmacGuard hmac;
+    hmac_context hmac;
     wc_HmacInit(hmac, NULL, INVALID_DEVID);
     if (wc_HmacSetKey(hmac, WC_SHA512, kp, key.size()) != 0)
         throw error("HMAC512 key setup failed");
@@ -334,30 +319,21 @@ inline void startup() {
 #ifdef KAKUSU_CRYPTO_MINICRYPT
 class random_context final {
 public:
-    random_context() {
-        fd_ = ::open("/dev/urandom", O_RDONLY);
-        if (fd_ < 0) throw error("rng failed init");
-    }
-
-    ~random_context() {
-        if (fd_ > 0) {
-            ::close(fd_);
-            fd_ = -1;
-        }
-    }
-
+    random_context() { mc_random_init(&rng_); }
+    ~random_context() { mc_random_free(&rng_); }
     random_context(const random_context&) = delete;
     auto operator=(const random_context&) -> auto& = delete;
 
     template <typename Binary>
     void fill(Binary& buf) {
-        auto len = ::read(fd_, buf.data(), buf.size());
+        auto const put = reinterpret_cast<uint8_t *>(buf.data());
+        auto len = mc_random_fill(&rng_, put, buf.size());
         if (len < ssize_t(buf.size()))
             throw error("Randon fill failed");
     }
 
 private:
-    int fd_{-1};
+    mc_random_ctx rng_;
 };
 
 template <typename Binary>
@@ -382,8 +358,7 @@ inline auto make_hmac256(const Binary& key, const Binary& input) -> byte_array {
     return out;
 }
 
-inline void startup() {
-}
+inline void startup() {}
 #endif
 
 #ifdef KAKUSU_CRYPTO_SODIUM
