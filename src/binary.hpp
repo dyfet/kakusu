@@ -46,7 +46,6 @@ using byte_array = hitycho::byte_array;
 
 #include <utility>
 #include <type_traits>
-#include <stdexcept>
 #include <algorithm>
 #include <limits>
 #include <array>
@@ -319,7 +318,7 @@ public:
     auto back() const -> const char& { return buffer_.back(); }
 
     void fill(char value) {
-        std::fill(buffer_.begin(), buffer_.end(), value);
+        std::fill(buffer_.begin(), buffer_.end(), value); // NOLINT
     }
 
     void replace(char from, char to) {

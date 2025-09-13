@@ -19,7 +19,7 @@ build/
 *.user
 
 cpp.hint
-busuto.pc
+kakusu.pc
 cmake_*.cmake
 Makefile
 CMakeCache.txt

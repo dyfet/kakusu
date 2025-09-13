@@ -7,6 +7,7 @@
 
 #if defined(KAKUSU_CRYPTO_MINICRYPT)
 #include <minicrypt/md5.h>
+#include <minicrypt/sha1.h>
 
 namespace kakusu {
 template <typename Binary>
@@ -31,6 +32,30 @@ private:
     }
 
     auto finish() -> bool final { return mc_md5_final(&ctx_, out()) == 0; }
+};
+
+template <typename Binary>
+inline auto make_sha1(const Binary& input) -> byte_array {
+    byte_array out(MC_SHA1_DIGEST_SIZE);
+    mc_sha1_ctx ctx;
+    auto const get = reinterpret_cast<const uint8_t *>(input.data());
+    auto put = reinterpret_cast<uint8_t *>(out.data());
+    mc_sha1_init(&ctx);
+    mc_sha1_update(&ctx, get, input.size());
+    mc_sha1_final(&ctx, put);
+    return out;
+}
+
+class sha1_t final : public streambuf<mc_sha1_ctx, MC_SHA1_DIGEST_SIZE> {
+public:
+    sha1_t() : streambuf() { mc_sha1_init(&ctx_); }
+
+private:
+    auto update(std::size_t size) -> bool final {
+        return mc_sha1_update(&ctx_, buf(), size) == 0;
+    }
+
+    auto finish() -> bool final { return mc_sha1_final(&ctx_, out()) == 0; }
 };
 } // namespace kakusu
 

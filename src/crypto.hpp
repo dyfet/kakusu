@@ -16,12 +16,15 @@
 #include <openssl/crypto.h>
 #include <openssl/core_names.h>
 #include <openssl/sha.h>
+#include <openssl/hmac.h>
 #endif
 
 #ifdef KAKUSU_CRYPTO_WOLFSSL
 #define KAKUSU_CRYPTO_CONFIGURED
 #include <wolfssl/options.h>
 #include <wolfssl/ssl.h>
+#include <wolfssl/options.h>
+#include <wolfssl/wolfcrypt/hmac.h>
 #include <wolfssl/wolfcrypt/random.h>
 #include <wolfssl/wolfcrypt/sha256.h>
 #include <wolfssl/wolfcrypt/sha512.h>
@@ -37,7 +40,7 @@
 
 #ifdef KAKUSU_CRYPTO_MINICRYPT
 #define KAKUSU_CRYPTO_CONFIGURED
-#include <minicrypt/sha256.h>
+#include <minicrypt/hmac.h>
 #include <fcntl.h>
 #include <unistd.h>
 #endif
@@ -120,21 +123,41 @@ private:
 
 template <typename Binary>
 inline auto make_sha256(const Binary& input) -> byte_array {
-    constexpr std::size_t sha1_size = 32;
-    byte_array out(sha1_size);
+    constexpr std::size_t sha_size = 32;
+    byte_array out(sha_size);
     unsigned int out_len = 0;
-    if (!EVP_Digest(input.data(), input.size(), reinterpret_cast<unsigned char *>(out.data()), &out_len, EVP_sha256(), nullptr)) throw error("SHA1 digest failed");
-    if (out_len != sha1_size) error("ND5 Digest unexpected output size");
+    if (!EVP_Digest(input.data(), input.size(), reinterpret_cast<unsigned char *>(out.data()), &out_len, EVP_sha256(), nullptr)) throw error("SHA256 digest failed");
+    if (out_len != sha_size) error("SHA256 Digest unexpected output size");
     return out;
 }
 
 template <typename Binary>
 inline auto make_sha512(const Binary& input) -> byte_array {
-    constexpr std::size_t sha1_size = 64;
-    byte_array out(sha1_size);
+    constexpr std::size_t sha_size = 64;
+    byte_array out(sha_size);
     unsigned int out_len = 0;
-    if (!EVP_Digest(input.data(), input.size(), reinterpret_cast<unsigned char *>(out.data()), &out_len, EVP_sha512(), nullptr)) throw error("SHA1 digest failed");
-    if (out_len != sha1_size) error("ND5 Digest unexpected output size");
+    if (!EVP_Digest(input.data(), input.size(), reinterpret_cast<unsigned char *>(out.data()), &out_len, EVP_sha512(), nullptr)) throw error("SHA512 digest failed");
+    if (out_len != sha_size) throw error("SHA512 Digest invalid output size");
+    return out;
+}
+
+template <typename Binary>
+inline auto make_hmac256(const Binary& key, const Binary& input) -> byte_array {
+    constexpr std::size_t sha_size = 32;
+    byte_array out(sha_size);
+    unsigned int out_len = 0;
+    if (!HMAC(EVP_sha256(), key.data(), key.size(), input.data(), input.size(), reinterpret_cast<unsigned char *>(out.data()), &out_len)) throw error("HMAC256 fauled");
+    if (out_len != sha_size) throw error("HMAC256 invalid output size");
+    return out;
+}
+
+template <typename Binary>
+inline auto make_hmac512(const Binary& key, const Binary& input) -> byte_array {
+    constexpr std::size_t sha_size = 64;
+    byte_array out(sha_size);
+    unsigned int out_len = 0;
+    if (!HMAC(EVP_sha512(), key.data(), key.size(), input.data(), input.size(), reinterpret_cast<unsigned char *>(out.data()), &out_len)) throw error("HMAC512 fauled");
+    if (out_len != sha_size) throw error("HMAC512 invalid output size");
     return out;
 }
 
@@ -247,6 +270,61 @@ inline auto make_sha512(const Binary& input) -> byte_array {
     return out;
 }
 
+class wc_HmacGuard {
+public:
+    wc_HmacGuard() {
+        wc_HmacInit(&hmac_, nullptr, INVALID_DEVID);
+    }
+
+    ~wc_HmacGuard() {
+        wc_HmacFree(&hmac_);
+    }
+
+    operator Hmac *() {
+        return &hmac_;
+    }
+
+    Hmac *operator->() { return &hmac_; }
+    Hmac& operator*() { return hmac_; }
+
+private:
+    Hmac hmac_{};
+};
+
+template <typename Binary>
+inline auto make_hmac256(const Binary& key, const Binary& input) -> byte_array {
+    byte_array out(WC_SHA256_DIGEST_SIZE);
+    auto const get = reinterpret_cast<const unsigned char *>(input.data());
+    auto const kp = reinterpret_cast<const unsigned char *>(key.data());
+    auto put = reinterpret_cast<unsigned char *>(out.data());
+    wc_HmacGuard hmac;
+    wc_HmacInit(hmac, NULL, INVALID_DEVID);
+    if (wc_HmacSetKey(hmac, WC_SHA256, kp, key.size()) != 0)
+        throw error("HMAC256 key setup failed");
+    if (wc_HmacUpdate(hmac, get, input.size()) != 0)
+        throw error("HMAC256 update failed");
+    if (wc_HmacFinal(hmac, put) != 0)
+        throw error("HMAC256 finalization failed");
+    return out;
+}
+
+template <typename Binary>
+inline auto make_hmac512(const Binary& key, const Binary& input) -> byte_array {
+    byte_array out(WC_SHA512_DIGEST_SIZE);
+    auto const get = reinterpret_cast<const unsigned char *>(input.data());
+    auto const kp = reinterpret_cast<const unsigned char *>(key.data());
+    auto put = reinterpret_cast<unsigned char *>(out.data());
+    wc_HmacGuard hmac;
+    wc_HmacInit(hmac, NULL, INVALID_DEVID);
+    if (wc_HmacSetKey(hmac, WC_SHA512, kp, key.size()) != 0)
+        throw error("HMAC512 key setup failed");
+    if (wc_HmacUpdate(hmac, get, input.size()) != 0)
+        throw error("HMAC512 update failed");
+    if (wc_HmacFinal(hmac, put) != 0)
+        throw error("HMAC512 finalization failed");
+    return out;
+}
+
 inline void startup() {
     // auto ret = wolfSSL_Init();
     // if(ret > 0) throw error("WolfSSL init failed: " + std::to_string(ret));
@@ -291,6 +369,16 @@ inline auto make_sha256(const Binary& input) -> byte_array {
     mc_sha256_init(&ctx);
     mc_sha256_update(&ctx, get, input.size());
     mc_sha256_final(&ctx, put);
+    return out;
+}
+
+template <typename Binary>
+inline auto make_hmac256(const Binary& key, const Binary& input) -> byte_array {
+    byte_array out(MC_SHA256_DIGEST_SIZE);
+    auto const get = reinterpret_cast<const uint8_t *>(input.data());
+    auto const kv = reinterpret_cast<const uint8_t *>(key.data());
+    auto put = reinterpret_cast<uint8_t *>(out.data());
+    nc_hnac_sha256(kv, key.size(), get, input.size(), put);
     return out;
 }
 
