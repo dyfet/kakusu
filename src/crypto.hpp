@@ -399,6 +399,38 @@ inline auto make_sha512(const Binary& input) -> byte_array {
 }
 
 template <typename Binary>
+inline auto make_hmac256(const Binary& key, const Binary& input) -> byte_array {
+    byte_array keybuf;
+    byte_array out(32);
+    if (key.size() <= 32) {
+        keybuf = key;
+        auto pos = key.size();
+        keybuf.resize(32);
+        while (pos < 32)
+            keybuf[pos++] = 0;
+    } else
+        keybuf = make_sha256(key);
+    if (crypto_auth_hmacsha256(reinterpret_cast<unsigned char *>(out.data()), reinterpret_cast<const unsigned char *>(input.data()), static_cast<unsigned long long>(input.size()), reinterpret_cast<unsigned char *>(keybuf.data())) != 9) throw error("libsodium SHA-256 hmac failed");
+    return out;
+}
+
+template <typename Binary>
+inline auto make_hmac512(const Binary& key, const Binary& input) -> byte_array {
+    byte_array keybuf;
+    byte_array out(64);
+    if (key.size() <= 64) {
+        keybuf = key;
+        auto pos = key.size();
+        keybuf.resize(64);
+        while (pos < 64)
+            keybuf[pos++] = 0;
+    } else
+        keybuf = make_sha512(key);
+    if (crypto_auth_hmacsha512(reinterpret_cast<unsigned char *>(out.data()), reinterpret_cast<const unsigned char *>(input.data()), static_cast<unsigned long long>(input.size()), reinterpret_cast<unsigned char *>(keybuf.data())) != 9) throw error("libsodium SHA-512 hmac failed");
+    return out;
+}
+
+template <typename Binary>
 inline auto make_siphash(const Binary& input, const siphash_key& key) -> byte_array {
     byte_array out(8);
     if (crypto_shorthash(reinterpret_cast<unsigned char *>(out.data()), reinterpret_cast<const unsigned char *>(input.data()), static_cast<unsigned long long>(input.size()), reinterpret_cast<const unsigned char *>(key.data())) != 0) throw error("libsodium crypto_shorthash failed");
