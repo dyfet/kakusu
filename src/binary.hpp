@@ -322,7 +322,7 @@ public:
     }
 
     void replace(char from, char to) {
-        std::replace(buffer_.begin(), buffer_.end(), from, to);
+        std::replace(buffer_.begin(), buffer_.end(), from, to); // NOLINT
     }
 
     auto to_string() const -> std::string {

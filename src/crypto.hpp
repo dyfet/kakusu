@@ -124,7 +124,8 @@ inline auto make_sha256(const Binary& input) -> byte_array {
     constexpr std::size_t sha_size = 32;
     byte_array out(sha_size);
     unsigned int out_len = 0;
-    if (!EVP_Digest(input.data(), input.size(), reinterpret_cast<unsigned char *>(out.data()), &out_len, EVP_sha256(), nullptr)) throw error("SHA256 digest failed");
+    auto ip = reinterpret_cast<const uint8_t *>(input.data());
+    if (!EVP_Digest(ip, input.size(), reinterpret_cast<unsigned char *>(out.data()), &out_len, EVP_sha256(), nullptr)) throw error("SHA256 digest failed");
     if (out_len != sha_size) error("SHA256 Digest unexpected output size");
     return out;
 }
@@ -134,7 +135,8 @@ inline auto make_sha512(const Binary& input) -> byte_array {
     constexpr std::size_t sha_size = 64;
     byte_array out(sha_size);
     unsigned int out_len = 0;
-    if (!EVP_Digest(input.data(), input.size(), reinterpret_cast<unsigned char *>(out.data()), &out_len, EVP_sha512(), nullptr)) throw error("SHA512 digest failed");
+    auto ip = reinterpret_cast<const uint8_t *>(input.data());
+    if (!EVP_Digest(ip, input.size(), reinterpret_cast<unsigned char *>(out.data()), &out_len, EVP_sha512(), nullptr)) throw error("SHA512 digest failed");
     if (out_len != sha_size) throw error("SHA512 Digest invalid output size");
     return out;
 }
@@ -144,7 +146,9 @@ inline auto make_hmac256(const Binary& key, const Binary& input) -> byte_array {
     constexpr std::size_t sha_size = 32;
     byte_array out(sha_size);
     unsigned int out_len = 0;
-    if (!HMAC(EVP_sha256(), key.data(), key.size(), input.data(), input.size(), reinterpret_cast<unsigned char *>(out.data()), &out_len)) throw error("HMAC256 fauled");
+    auto kp = reinterpret_cast<const uint8_t *>(key.data());
+    auto ip = reinterpret_cast<const uint8_t *>(input.data());
+    if (!HMAC(EVP_sha256(), kp, key.size(), ip, input.size(), reinterpret_cast<unsigned char *>(out.data()), &out_len)) throw error("HMAC256 fauled");
     if (out_len != sha_size) throw error("HMAC256 invalid output size");
     return out;
 }
@@ -354,7 +358,7 @@ inline auto make_hmac256(const Binary& key, const Binary& input) -> byte_array {
     auto const get = reinterpret_cast<const uint8_t *>(input.data());
     auto const kv = reinterpret_cast<const uint8_t *>(key.data());
     auto put = reinterpret_cast<uint8_t *>(out.data());
-    nc_hnac_sha256(kv, key.size(), get, input.size(), put);
+    mc_hmac_sha256(kv, key.size(), get, input.size(), put);
     return out;
 }
 
@@ -468,5 +472,32 @@ inline auto make_salt() -> salt_t {
     salt_t salt;
     rng.fill(salt);
     return salt;
+}
+
+inline auto make_pbkdf2(const byte_array& pass, const salt_t& salt, std::size_t size, uint32_t rounds = 50000) {
+    byte_array out(size);
+    byte_array salt_block(salt.size() + 4);
+    const uint32_t block_count = (size + 31) / 32;
+    for (uint32_t i = 1; i <= block_count; ++i) {
+        memcpy(salt_block.data(), salt.data(), salt.size());
+        auto sp = reinterpret_cast<uint8_t *>(salt_block.data());
+        sp[salt.size() + 0] = static_cast<uint8_t>((i >> 24) & 0xff);
+        sp[salt.size() + 1] = static_cast<uint8_t>((i >> 16) & 0xff);
+        sp[salt.size() + 2] = static_cast<uint8_t>((i >> 8) & 0xff);
+        sp[salt.size() + 3] = static_cast<uint8_t>(i & 0xff);
+        auto U = make_hmac256(pass, salt_block);
+        auto T = U;
+        for (uint32_t j = 1; j < rounds; ++j) {
+            U = make_hmac256(pass, U);
+            for (int k = 0; k < 32; ++k)
+                T[k] ^= U[k]; // NOLINT
+        }
+        uint32_t offset = (i - 1) * 32;
+        uint32_t copy = (offset + 32 > size) ? size - offset : 32;
+        uint32_t pos = 0;
+        while (copy--)
+            out[offset++] = T[pos++];
+    }
+    return out;
 }
 } // namespace kakusu
