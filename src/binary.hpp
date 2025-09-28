@@ -14,8 +14,6 @@
 #include <vector>
 #include <ostream>
 #include <cstring>
-#include <cstddef>
-#include <cstdint>
 
 namespace kakusu {
 using byte_view = std::string_view;
@@ -45,7 +43,7 @@ public:
         other.erase();
     }
 
-    ~secure_array() {
+    ~secure_array() noexcept {
         erase();
     }
 
@@ -63,7 +61,7 @@ public:
     }
 
     template <typename Binary>
-    auto operator=(const Binary& from) noexcept {
+    auto operator=(const Binary& from) noexcept -> secure_array& {
         auto len = std::min(S, from.size());
         if (len) {
             memcpy(&data_, from.data(), len);
@@ -73,12 +71,16 @@ public:
         return *this;
     }
 
+    // secure array can never be empty...
+    operator bool() const noexcept { return true; }
+    auto operator!() const noexcept { return false; }
     auto data() const noexcept -> const std::byte * { return data_; };
     auto data() noexcept -> std::byte * { return data_; };
     auto size() const noexcept { return S; };
+    auto empty() const noexcept { return false; }
 
 private:
-    static_assert(S > 0, "Key size invalid");
+    static_assert(S > 0, "Secure data size invalid");
     std::byte data_[S]{};
 
     void erase() noexcept {
@@ -89,6 +91,7 @@ private:
 using salt_t = secure_array<8>;
 using siphash_key_t = secure_array<16>;
 using aes128_key_t = secure_array<16>;
+using aes192_key_t = secure_array<24>;
 using aes256_key_t = secure_array<32>;
 using sha512_digest_t = secure_array<65>;
 using sha256_digest_t = secure_array<32>;
@@ -96,7 +99,7 @@ using sha1_digest_t = secure_array<20>;
 using md5_digest_t = secure_array<16>;
 
 template <std::size_t S>
-auto make_secure() {
+auto make_secure() noexcept {
     return secure_array<S>();
 }
 
@@ -112,44 +115,31 @@ constexpr auto to_byte(char u) noexcept {
     return static_cast<std::byte>(u);
 }
 
-inline auto to_byte(const uint8_t *data) {
+inline auto to_byte(const uint8_t *data) noexcept {
     return reinterpret_cast<const std::byte *>(data);
 }
 
-inline auto to_byte(uint8_t *data) {
+inline auto to_byte(uint8_t *data) noexcept {
     return reinterpret_cast<std::byte *>(data);
 }
 
-inline auto to_byte(const char *data) {
+inline auto to_byte(const char *data) noexcept {
     return reinterpret_cast<const uint8_t *>(data);
 }
 
-inline auto to_byte(char *data) {
+inline auto to_byte(char *data) noexcept {
     return reinterpret_cast<uint8_t *>(data);
 }
 
-inline auto to_byte(const std::byte *data) {
+inline auto to_byte(const std::byte *data) noexcept {
     return reinterpret_cast<const uint8_t *>(data);
 }
 
-inline auto to_byte(std::byte *data) {
+inline auto to_byte(std::byte *data) noexcept {
     return reinterpret_cast<uint8_t *>(data);
 }
 
-template <typename T>
-constexpr auto is(const T& object) {
-    return static_cast<bool>(object);
-}
-
-template <typename T>
-constexpr auto is_null(const T& ptr) {
-    if constexpr (std::is_pointer_v<T>)
-        return ptr == nullptr;
-    else
-        return !static_cast<bool>(ptr);
-}
-
-inline auto make_b64_lookup() {
+inline auto make_b64_lookup() noexcept {
     std::array<uint8_t, 256> table{};
     table.fill(0xFF); // invalid by default
 
@@ -164,7 +154,7 @@ inline auto make_b64_lookup() {
     return table;
 }
 
-inline auto make_hex_lookup() {
+inline auto make_hex_lookup() noexcept {
     std::array<uint8_t, 256> table{};
     table.fill(0xFF); // Invalid by default
 
@@ -178,7 +168,7 @@ inline auto make_hex_lookup() {
     return table;
 }
 
-inline auto encode_b64(std::string_view input) -> std::string {
+inline auto encode_b64(std::string_view input) noexcept -> std::string {
     static constexpr char alphabet[] =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
@@ -210,12 +200,11 @@ inline auto encode_b64(std::string_view input) -> std::string {
     return out;
 }
 
-inline auto decode_b64(const std::string& in) -> std::vector<std::byte> {
+inline auto decode_b64(const std::string& in) noexcept -> std::vector<std::byte> {
     auto b64_lookup = make_b64_lookup();
     std::vector<std::byte> out;
     const std::size_t len = in.size();
-    if (len % 4 != 0) throw invalid{"Invalid b64 length"};
-
+    if (len % 4 != 0) return {};
     for (std::size_t i = 0; i < len; i += 4) {
         uint32_t val = 0;
         int pad = 0;
@@ -226,7 +215,7 @@ inline auto decode_b64(const std::string& in) -> std::vector<std::byte> {
                 ++pad;
             } else {
                 const uint8_t v = b64_lookup[static_cast<unsigned char>(c)];
-                if (v == 0xFF) throw invalid{"Invalid b64 character"};
+                if (v == 0xFF) return {};
                 val = (val << 6) | v;
             }
         }
@@ -238,7 +227,7 @@ inline auto decode_b64(const std::string& in) -> std::vector<std::byte> {
     return out;
 }
 
-inline auto encode_hex(std::string_view input) -> std::string {
+inline auto encode_hex(std::string_view input) noexcept -> std::string {
     const char hex[] = "0123456789ABCDEF";
     std::string out;
     out.reserve(input.size() * 2);
@@ -250,19 +239,15 @@ inline auto encode_hex(std::string_view input) -> std::string {
     return out;
 }
 
-inline auto decode_hex(const std::string& in) -> std::vector<std::byte> {
+inline auto decode_hex(const std::string& in) noexcept -> std::vector<std::byte> {
     auto hex_lookup = make_hex_lookup();
-    if (in.size() % 2 != 0)
-        throw invalid{"Hex string must have even length"};
-
+    if (in.size() % 2 != 0) return {};
     std::vector<std::byte> out;
     out.reserve(in.size() / 2);
-
     for (std::size_t i = 0; i < in.size(); i += 2) {
         const uint8_t hi = hex_lookup[static_cast<unsigned char>(in[i])];
         const uint8_t lo = hex_lookup[static_cast<unsigned char>(in[i + 1])];
-        if (hi == 0xFF || lo == 0xFF)
-            throw invalid{"Invalid hex character"};
+        if (hi == 0xFF || lo == 0xFF) return {};
         out.push_back(std::byte{static_cast<uint8_t>((hi << 4) | lo)});
     }
 
@@ -432,7 +417,7 @@ private:
 };
 
 inline auto operator<<(std::ostream& out, const byte_array& bytes) -> std::ostream& {
-    if (is(bytes))
+    if (!bytes.empty())
         out << bytes.to_hex();
     else
         out << "nil";
@@ -463,7 +448,7 @@ namespace std {
 template <>
 struct hash<kakusu::byte_array> {
     auto operator()(const kakusu::byte_array& b) const noexcept {
-        if (!is(b))
+        if (!b)
             return std::size_t(0);
         const auto *bytes = b.data();
         return std::hash<std::string_view>{}(std::string_view(
@@ -472,4 +457,3 @@ struct hash<kakusu::byte_array> {
     }
 };
 } // namespace std
-
