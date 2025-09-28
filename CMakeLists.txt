@@ -2,9 +2,9 @@
 # Copyright (C) 2025 David Sugar <tychosoft@gmail.com>
 
 cmake_minimum_required(VERSION 3.16.0)
-project(Kakusu VERSION 0.1.3 LANGUAGES CXX)
+project(Kakusu VERSION 0.2.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
 
 file(
     GLOB LINT_SOURCES
@@ -39,21 +39,6 @@ enable_testing()
 add_executable(test_binary test/binary.cpp src/binary.hpp)
 add_test(NAME test-binary COMMAND test_binary)
 target_link_libraries(test_binary)
-
-if(OPENSSL_FOUND AND HPX_FOUND)
-add_executable(test_hitycho test/hitycho.cpp src/crypto.hpp)
-add_test(NAME test-hitycho COMMAND test_hitycho)
-target_include_directories(test_hitycho PRIVATE ${HPX_APPLICATION_INCLUDE_DIRS})
-target_link_libraries(test_hitycho PRIVATE OpenSSL::Crypto HPX::hpx HPX::wrap_main)
-set_target_properties(test_hitycho PROPERTIES CXX_STANDARD_REQUIRED OFF)
-target_compile_features(test_hitycho PRIVATE cxx_std_17)
-endif()
-
-if(OPENSSL_FOUND AND BUSUTO_FOUND)
-add_executable(test_busuto test/busuto.cpp src/crypto.hpp)
-add_test(NAME test-busuto COMMAND test_busuto)
-target_link_libraries(test_busuto PRIVATE OpenSSL::Crypto ${BUSUTO_LIBRARIES})
-endif()
 
 if(OPENSSL_FOUND)
 add_executable(test_openssl test/openssl.cpp src/crypto.hpp)

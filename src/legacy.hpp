@@ -139,65 +139,6 @@ private:
     }
 };
 } // namespace kakusu
-#elif defined(KAKUSU_CRYPTO_WOLFSSL)
-#include <wolfssl/wolfcrypt/md5.h>
-#include <wolfssl/wolfcrypt/sha.h>
-
-namespace kakusu {
-template <typename Binary>
-inline auto make_md5(const Binary& input) -> byte_array {
-    byte_array out(WC_MD5_DIGEST_SIZE);
-    wc_Md5 ctx;
-    auto const get = reinterpret_cast<const unsigned char *>(input.data());
-    auto put = reinterpret_cast<unsigned char *>(out.data());
-    if (wc_InitMd5(&ctx) != 0)
-        throw error("MD5: init failed");
-    if (wc_Md5Update(&ctx, get, input.size()) != 0)
-        throw error("KD5: update failed");
-    if (wc_Md5Final(&ctx, put) != 0)
-        throw error("KD5: final failed");
-    return out;
-}
-
-template <typename Binary>
-inline auto make_sha1(const Binary& input) -> byte_array {
-    byte_array out(WC_SHA_DIGEST_SIZE);
-    wc_Sha ctx;
-    auto const get = reinterpret_cast<const unsigned char *>(input.data());
-    auto put = reinterpret_cast<unsigned char *>(out.data());
-    if (wc_InitSha(&ctx) != 0)
-        throw error("SHA1: init failed");
-    if (wc_ShaUpdate(&ctx, get, input.size()) != 0)
-        throw error("SHA1: update failed");
-    if (wc_ShaFinal(&ctx, put) != 0)
-        throw error("SHA1: final failed");
-    return out;
-}
-
-class sha1_t final : public streambuf<wc_Sha, WC_SHA_DIGEST_SIZE> {
-public:
-    sha1_t() : streambuf() { finished_ = wc_InitSha(&ctx_) != 0; }
-
-private:
-    auto update(std::size_t size) -> bool final {
-        return wc_ShaUpdate(&ctx_, buf(), size) == 0;
-    }
-
-    auto finish() -> bool final { return wc_ShaFinal(&ctx_, out()) == 0; }
-};
-
-class md5_t final : public streambuf<wc_Md5, WC_MD5_DIGEST_SIZE> {
-public:
-    md5_t() : streambuf() { finished_ = wc_InitMd5(&ctx_) != 0; }
-
-private:
-    auto update(std::size_t size) -> bool final {
-        return wc_Md5Update(&ctx_, buf(), size) == 0;
-    }
-
-    auto finish() -> bool final { return wc_Md5Final(&ctx_, out()) == 0; }
-};
-} // namespace kakusu
 #else
 #error Crypto backend does not support legacy algorithms
 #endif

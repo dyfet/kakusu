@@ -6,6 +6,16 @@
 #include <stdexcept>
 #include <cstddef>
 #include <cstdint>
+#include <utility>
+#include <type_traits>
+#include <algorithm>
+#include <limits>
+#include <array>
+#include <vector>
+#include <ostream>
+#include <cstring>
+#include <cstddef>
+#include <cstdint>
 
 namespace kakusu {
 using byte_view = std::string_view;
@@ -13,6 +23,82 @@ using error = std::runtime_error;
 using range = std::out_of_range;
 using invalid = std::invalid_argument;
 using overflow = std::overflow_error;
+
+template <std::size_t S>
+class secure_array final {
+public:
+    secure_array() noexcept = default;
+    secure_array(const secure_array& from) noexcept : data_(from.data_) {}
+
+    template <typename Binary>
+    explicit secure_array(const Binary& from) noexcept {
+        auto len = std::min(S, from.size());
+        if (len) {
+            memcpy(&data_, from.data(), len);
+            auto wp = const_cast<void *>(reinterpret_cast<const void *>(from.data()));
+            memset(wp, 0, len);
+        }
+    }
+
+    secure_array(secure_array&& other) noexcept {
+        memcpy(data(), other.data(), S);
+        other.erase();
+    }
+
+    ~secure_array() {
+        erase();
+    }
+
+    auto operator=(secure_array&& other) noexcept -> auto& {
+        if (this == &other) return *this;
+        memcpy(data(), other.data(), S);
+        other.erase();
+        return *this;
+    }
+
+    auto operator=(const secure_array& from) noexcept -> auto& {
+        if (this == &from) return *this;
+        data_ = from.data_;
+        return *this;
+    }
+
+    template <typename Binary>
+    auto operator=(const Binary& from) noexcept {
+        auto len = std::min(S, from.size());
+        if (len) {
+            memcpy(&data_, from.data(), len);
+            auto wp = const_cast<void *>(reinterpret_cast<const void *>(from.data()));
+            memset(wp, 0, len);
+        }
+        return *this;
+    }
+
+    auto data() const noexcept -> const std::byte * { return data_; };
+    auto data() noexcept -> std::byte * { return data_; };
+    auto size() const noexcept { return S; };
+
+private:
+    static_assert(S > 0, "Key size invalid");
+    std::byte data_[S]{};
+
+    void erase() noexcept {
+        memset(data(), 0, S);
+    }
+};
+
+using salt_t = secure_array<8>;
+using siphash_key_t = secure_array<16>;
+using aes128_key_t = secure_array<16>;
+using aes256_key_t = secure_array<32>;
+using sha512_digest_t = secure_array<65>;
+using sha256_digest_t = secure_array<32>;
+using sha1_digest_t = secure_array<20>;
+using md5_digest_t = secure_array<16>;
+
+template <std::size_t S>
+auto make_secure() {
+    return secure_array<S>();
+}
 
 constexpr auto to_byte(std::byte b) noexcept {
     return static_cast<uint8_t>(b);
@@ -49,51 +135,7 @@ inline auto to_byte(const std::byte *data) {
 inline auto to_byte(std::byte *data) {
     return reinterpret_cast<uint8_t *>(data);
 }
-} // namespace kakusu
 
-#if defined(BUSUTO_RUNTIME_SYSTEM) || defined(KAKUSU_RUNTIME_BUSUTO)
-#include <busuto/binary.hpp>
-
-namespace kakusu {
-using namespace busuto::util;
-using byte_array = busuto::byte_array;
-using byte_span = std::span<const std::byte>;
-
-template <typename Binary>
-inline auto to_byte_span(const Binary& obj) {
-    return byte_span(reinterpret_cast<const std::byte *>(obj.data()), obj.size());
-}
-
-template <typename Binary>
-inline auto to_hex(const Binary& bin) {
-    return encode_hex(to_byte_span(bin));
-}
-} // namespace kakusu
-
-#elif defined(HITYCHO_RUNTIME_SYSTEM) || defined(KAKUSU_RUNTIME_HITYCHO)
-
-#include <hitycho/binary.hpp>
-#include <hitycho/system.hpp>
-
-namespace kakusu {
-using namespace hitycho::util;
-using byte_array = hitycho::byte_array;
-} // namespace kakusu
-
-#else
-
-#include <utility>
-#include <type_traits>
-#include <algorithm>
-#include <limits>
-#include <array>
-#include <vector>
-#include <ostream>
-#include <cstring>
-#include <cstddef>
-#include <cstdint>
-
-namespace kakusu {
 template <typename T>
 constexpr auto is(const T& object) {
     return static_cast<bool>(object);
@@ -226,6 +268,8 @@ inline auto decode_hex(const std::string& in) -> std::vector<std::byte> {
 
     return out;
 }
+
+// TODO: Eliminate byte_array in favor of secure_array
 
 class byte_array {
 public:
@@ -429,4 +473,3 @@ struct hash<kakusu::byte_array> {
 };
 } // namespace std
 
-#endif

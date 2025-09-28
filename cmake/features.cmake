@@ -15,8 +15,6 @@ find_package(OpenSSL)
 pkg_check_modules(SODIUM libsodium)
 pkg_check_modules(WOLFSSL wolfssl)
 pkg_check_modules(MINICRYPT minicrypt>=0.1.4)
-pkg_check_modules(BUSUTO busuto)
-pkg_check_modules(HITYCHO hitycho)
 
 if(HITYCHO_FOUND)
     find_package(HPX)

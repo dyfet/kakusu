@@ -5,7 +5,7 @@
 
 #undef NDEBUG
 #include "hash.hpp"
-#include "legacy.hpp"
+#include "digests.hpp"
 #include <cassert>
 
 using namespace kakusu;

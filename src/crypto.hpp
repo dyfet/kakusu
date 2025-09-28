@@ -47,57 +47,6 @@
 #endif
 
 namespace kakusu {
-template <std::size_t S>
-class secure_array final {
-public:
-    secure_array() = default;
-    secure_array(const secure_array&) = delete;
-    auto operator=(const secure_array&) -> auto& = delete;
-
-    template <typename Binary>
-    explicit secure_array(const Binary& from) {
-        auto len = std::min(S, from.size());
-        if (len) {
-            memcpy(&data_, from.data(), len);
-            auto wp = const_cast<void *>(reinterpret_cast<const void *>(from.data()));
-            memset(wp, 0, len);
-        }
-    }
-
-    secure_array(secure_array&& other) noexcept {
-        memcpy(data(), other.data(), S);
-        other.erase();
-    }
-
-    ~secure_array() {
-        erase();
-    }
-
-    auto operator=(secure_array&& other) noexcept -> auto& {
-        if (this == &other) return *this;
-        memcpy(data(), other.data(), S);
-        other.erase();
-        return *this;
-    }
-
-    auto data() const noexcept -> const std::byte * { return data_; };
-    auto data() noexcept -> std::byte * { return data_; };
-    auto size() const noexcept { return S; };
-
-private:
-    static_assert(S > 0, "Key size invalid");
-    std::byte data_[S]{};
-
-    void erase() noexcept {
-        memset(data(), 0, S);
-    }
-};
-
-using salt_t = secure_array<8>;
-using siphash_key = secure_array<16>;
-using aes128_key = secure_array<16>;
-using aes256_key = secure_array<32>;
-
 #ifdef KAKUSU_CRYPTO_OPENSSL
 class random_context final {
 public:
@@ -164,7 +113,7 @@ inline auto make_hmac512(const Binary& key, const Binary& input) -> byte_array {
 }
 
 template <typename Binary>
-inline auto make_siphash(const Binary& input, siphash_key key) -> byte_array {
+inline auto make_siphash(const Binary& input, siphash_key_t key) -> byte_array {
     unsigned outlen = 8;
     EVP_MAC *mac = EVP_MAC_fetch(nullptr, "SIPHASH", nullptr);
     if (!mac) throw error("EVP_MAC_fetch(SIPHASH) failed");
@@ -201,9 +150,9 @@ inline auto make_siphash(const Binary& input, siphash_key key) -> byte_array {
     return out;
 }
 
-inline auto siphash_keygen() -> siphash_key {
+inline auto siphash_keygen() -> siphash_key_t {
     random_context rng;
-    siphash_key key;
+    siphash_key_t key;
     rng.fill(key);
     return key;
 }
@@ -435,14 +384,14 @@ inline auto make_hmac512(const Binary& key, const Binary& input) -> byte_array {
 }
 
 template <typename Binary>
-inline auto make_siphash(const Binary& input, const siphash_key& key) -> byte_array {
+inline auto make_siphash(const Binary& input, const siphash_key_t& key) -> byte_array {
     byte_array out(8);
     if (crypto_shorthash(to_byte(out.data()), to_byte(input.data()), static_cast<unsigned long long>(input.size()), to_byte(key.data())) != 0) throw error("libsodium crypto_shorthash failed");
     return out;
 }
 
-inline auto siphash_keygen() -> siphash_key {
-    siphash_key key;
+inline auto siphash_keygen() -> siphash_key_t {
+    siphash_key_t key;
     crypto_shorthash_keygen(to_byte(key.data()));
     return key;
 }
