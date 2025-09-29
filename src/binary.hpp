@@ -35,23 +35,8 @@ public:
         }
     }
 
-    secure_array(secure_array&& other) noexcept : empty_(other.empty_) {
-        if (!empty_)
-            memcpy(data(), other.data(), S);
-        other.erase();
-    }
-
     ~secure_array() noexcept {
         erase();
-    }
-
-    auto operator=(secure_array&& other) noexcept -> auto& {
-        if (this == &other) return *this;
-        empty_ = other.empty_;
-        if (!empty_)
-            memcpy(data(), other.data(), S);
-        other.erase();
-        return *this;
     }
 
     auto operator=(const secure_array& from) noexcept -> auto& {
