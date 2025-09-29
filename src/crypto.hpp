@@ -55,16 +55,11 @@ public:
     auto operator=(const random_context&) -> auto& = delete;
 
     template <typename Binary>
-    void fill(Binary& buf) {
+    auto fill(Binary& buf) {
         const auto len = static_cast<int>(buf.size());
-        if (len < 0 || len > std::numeric_limits<int>::max()) {
-            throw error("Random fill size invalid");
-        }
-
+        if (len < 0 || len > std::numeric_limits<int>::max()) return false;
         auto *ptr = to_byte(buf.data());
-        if (RAND_bytes(ptr, len) != 1) {
-            throw error("Random fill failed");
-        }
+        return RAND_bytes(ptr, len) == 1;
     };
 };
 
@@ -74,9 +69,9 @@ inline auto make_sha256(const Binary& input) -> byte_array {
     byte_array out(sha_size);
     unsigned int out_len = 0;
     auto ip = to_byte(input.data());
-    if (!EVP_Digest(ip, input.size(), to_byte(out.data()), &out_len, EVP_sha256(), nullptr)) throw error("SHA256 digest failed");
-    if (out_len != sha_size) error("SHA256 Digest unexpected output size");
-    return out;
+    if (!EVP_Digest(ip, input.size(), to_byte(out.data()), &out_len, EVP_sha256(), nullptr)) return {};
+    if (out_len != sha_size) return {};
+    return out.set();
 }
 
 template <typename Binary>
@@ -85,9 +80,9 @@ inline auto make_sha512(const Binary& input) -> byte_array {
     byte_array out(sha_size);
     unsigned int out_len = 0;
     auto ip = to_byte(input.data());
-    if (!EVP_Digest(ip, input.size(), to_byte(out.data()), &out_len, EVP_sha512(), nullptr)) throw error("SHA512 digest failed");
-    if (out_len != sha_size) throw error("SHA512 Digest invalid output size");
-    return out;
+    if (!EVP_Digest(ip, input.size(), to_byte(out.data()), &out_len, EVP_sha512(), nullptr)) return {};
+    if (out_len != sha_size) return {};
+    return out.set();
 }
 
 template <typename Binary>
@@ -97,9 +92,9 @@ inline auto make_hmac256(const Binary& key, const Binary& input) -> byte_array {
     unsigned int out_len = 0;
     auto kp = to_byte(key.data());
     auto ip = to_byte(input.data());
-    if (!HMAC(EVP_sha256(), kp, key.size(), ip, input.size(), to_byte(out.data()), &out_len)) throw error("HMAC256 fauled");
-    if (out_len != sha_size) throw error("HMAC256 invalid output size");
-    return out;
+    if (!HMAC(EVP_sha256(), kp, key.size(), ip, input.size(), to_byte(out.data()), &out_len)) return {};
+    if (out_len != sha_size) return {};
+    return out.set();
 }
 
 template <typename Binary>
@@ -107,20 +102,20 @@ inline auto make_hmac512(const Binary& key, const Binary& input) -> byte_array {
     constexpr std::size_t sha_size = 64;
     byte_array out(sha_size);
     unsigned int out_len = 0;
-    if (!HMAC(EVP_sha512(), key.data(), key.size(), input.data(), input.size(), to_byte(out.data()), &out_len)) throw error("HMAC512 fauled");
-    if (out_len != sha_size) throw error("HMAC512 invalid output size");
-    return out;
+    if (!HMAC(EVP_sha512(), key.data(), key.size(), input.data(), input.size(), to_byte(out.data()), &out_len)) return {};
+    if (out_len != sha_size) return {};
+    return out.set();
 }
 
 template <typename Binary>
 inline auto make_siphash(const Binary& input, siphash_key_t key) -> byte_array {
     unsigned outlen = 8;
     EVP_MAC *mac = EVP_MAC_fetch(nullptr, "SIPHASH", nullptr);
-    if (!mac) throw error("EVP_MAC_fetch(SIPHASH) failed");
+    if (!mac) return {};
     EVP_MAC_CTX *ctx = EVP_MAC_CTX_new(mac);
     if (!ctx) {
         EVP_MAC_free(mac);
-        throw error("EVP_MAC_CTX_new failed");
+        return {};
     }
 
     auto kp = to_byte(key.data());
@@ -134,7 +129,7 @@ inline auto make_siphash(const Binary& input, siphash_key_t key) -> byte_array {
     if (EVP_MAC_init(ctx, kp, key.size(), params) <= 0 || EVP_MAC_CTX_set_params(ctx, params) <= 0 || EVP_MAC_update(ctx, ip, input.size()) <= 0) {
         EVP_MAC_CTX_free(ctx);
         EVP_MAC_free(mac);
-        throw error("EVP_MAC operation failed");
+        return {};
     }
 
     byte_array out(8);
@@ -142,26 +137,25 @@ inline auto make_siphash(const Binary& input, siphash_key_t key) -> byte_array {
     if (EVP_MAC_final(ctx, op, &actual, out.size()) <= 0 || actual != outlen) {
         EVP_MAC_CTX_free(ctx);
         EVP_MAC_free(mac);
-        throw error("EVP_MAC_final failed");
+        return {};
     }
 
     EVP_MAC_CTX_free(ctx);
     EVP_MAC_free(mac);
-    return out;
+    return out.set();
 }
 
-inline auto siphash_keygen() -> siphash_key_t {
+static inline auto siphash_keygen() -> siphash_key_t {
     random_context rng;
     siphash_key_t key;
-    rng.fill(key);
-    return key;
+    if (!rng.fill(key))
+        return {};
+    return key.set();
 }
 
-inline void startup() {
+static inline auto startup() {
     const int status = OPENSSL_init_crypto(OPENSSL_INIT_LOAD_CRYPTO_STRINGS | OPENSSL_INIT_ADD_ALL_CIPHERS, nullptr);
-    if (status != 1) {
-        throw std::runtime_error("OpenSSL crypto initialization failed");
-    }
+    return status == 1;
 }
 #endif
 
@@ -169,18 +163,19 @@ inline void startup() {
 class random_context final {
 public:
     random_context() {
-        if (wc_InitRng(&rng_) != 0) throw error("rng failed init");
+        if (wc_InitRng(&rng_) != 0) return;
     }
     ~random_context() { wc_FreeRng(&rng_); }
     random_context(const random_context&) = delete;
     auto operator=(const random_context&) -> auto& = delete;
 
     template <typename Binary>
-    void fill(Binary& buf) {
+    auto fill(Binary& buf) {
         const auto len = buf.size();
         auto ptr = to_byte(buf.data());
         if (len > 0)
-            if (wc_RNG_GenerateBlock(&rng_, ptr, len) != 0) throw error("Randon fill failed");
+            if (wc_RNG_GenerateBlock(&rng_, ptr, len) != 0) return false;
+        return true;
     }
 
 private:
@@ -193,13 +188,10 @@ inline auto make_sha256(const Binary& input) -> byte_array {
     wc_Sha256 ctx;
     auto const get = to_byte(input.data());
     auto put = to_byte(out.data());
-    if (wc_InitSha256(&ctx) != 0)
-        throw error("sha256: init failed");
-    if (wc_Sha256Update(&ctx, get, input.size()) != 0)
-        throw error("sha256: update failed");
-    if (wc_Sha256Final(&ctx, put) != 0)
-        throw error("sha256: final failed");
-    return out;
+    if (wc_InitSha256(&ctx) != 0) return {};
+    if (wc_Sha256Update(&ctx, get, input.size()) != 0) return {};
+    if (wc_Sha256Final(&ctx, put) != 0) return {};
+    return out.set();
 }
 
 template <typename Binary>
@@ -208,13 +200,10 @@ inline auto make_sha512(const Binary& input) -> byte_array {
     wc_Sha512 ctx;
     auto const get = to_byte(input.data());
     auto put = to_byte(out.data());
-    if (wc_InitSha512(&ctx) != 0)
-        throw error("sha512: init failed");
-    if (wc_Sha512Update(&ctx, get, input.size()) != 0)
-        throw error("sha512: update failed");
-    if (wc_Sha512Final(&ctx, put) != 0)
-        throw error("sha512: final failed");
-    return out;
+    if (wc_InitSha512(&ctx) != 0) return {};
+    if (wc_Sha512Update(&ctx, get, input.size()) != 0) return {};
+    if (wc_Sha512Final(&ctx, put) != 0) return {};
+    return out.set();
 }
 
 class hmac_context final {
@@ -237,13 +226,10 @@ inline auto make_hmac256(const Binary& key, const Binary& input) -> byte_array {
     auto put = to_byte(out.data());
     hmac_context hmac;
     wc_HmacInit(hmac, NULL, INVALID_DEVID);
-    if (wc_HmacSetKey(hmac, WC_SHA256, kp, key.size()) != 0)
-        throw error("HMAC256 key setup failed");
-    if (wc_HmacUpdate(hmac, get, input.size()) != 0)
-        throw error("HMAC256 update failed");
-    if (wc_HmacFinal(hmac, put) != 0)
-        throw error("HMAC256 finalization failed");
-    return out;
+    if (wc_HmacSetKey(hmac, WC_SHA256, kp, key.size()) != 0) return {};
+    if (wc_HmacUpdate(hmac, get, input.size()) != 0) return {};
+    if (wc_HmacFinal(hmac, put) != 0) return {};
+    return out.set();
 }
 
 template <typename Binary>
@@ -254,18 +240,14 @@ inline auto make_hmac512(const Binary& key, const Binary& input) -> byte_array {
     auto put = to_byte(out.data());
     hmac_context hmac;
     wc_HmacInit(hmac, NULL, INVALID_DEVID);
-    if (wc_HmacSetKey(hmac, WC_SHA512, kp, key.size()) != 0)
-        throw error("HMAC512 key setup failed");
-    if (wc_HmacUpdate(hmac, get, input.size()) != 0)
-        throw error("HMAC512 update failed");
-    if (wc_HmacFinal(hmac, put) != 0)
-        throw error("HMAC512 finalization failed");
-    return out;
+    if (wc_HmacSetKey(hmac, WC_SHA512, kp, key.size()) != 0) return {};
+    if (wc_HmacUpdate(hmac, get, input.size()) != 0) return {};
+    if (wc_HmacFinal(hmac, put) != 0) return {};
+    return out.set();
 }
 
-inline void startup() {
-    // auto ret = wolfSSL_Init();
-    // if(ret > 0) throw error("WolfSSL init failed: " + std::to_string(ret));
+static inline auto startup() {
+    return true;
 }
 #endif
 
@@ -278,11 +260,12 @@ public:
     auto operator=(const random_context&) -> auto& = delete;
 
     template <typename Binary>
-    void fill(Binary& buf) {
+    auto fill(Binary& buf) {
         auto const put = to_byte(buf.data());
         auto len = mc_random_fill(&rng_, put, buf.size());
         if (len < ssize_t(buf.size()))
-            throw error("Randon fill failed");
+            return false;
+        return true;
     }
 
 private:
@@ -298,7 +281,7 @@ inline auto make_sha256(const Binary& input) -> byte_array {
     mc_sha256_init(&ctx);
     mc_sha256_update(&ctx, get, input.size());
     mc_sha256_final(&ctx, put);
-    return out;
+    return out.set();
 }
 
 template <typename Binary>
@@ -308,10 +291,10 @@ inline auto make_hmac256(const Binary& key, const Binary& input) -> byte_array {
     auto const kv = to_byte(key.data());
     auto put = to_byte(out.data());
     mc_hmac_sha256(kv, key.size(), get, input.size(), put);
-    return out;
+    return out.set();
 }
 
-inline void startup() {}
+static inline auto startup() { return true; }
 #endif
 
 #ifdef KAKUSU_CRYPTO_SODIUM
@@ -322,16 +305,17 @@ public:
     auto operator=(const random_context&) -> auto& = delete;
 
     template <typename Binary>
-    void fill(Binary& buf) {
+    auto fill(Binary& buf) {
         const auto len = static_cast<int>(buf.size());
         if (len < 0 || len > static_cast<int>(std::numeric_limits<int>::max())) {
-            throw std::runtime_error("Random fill size invalid");
+            return false;
         }
 
         auto *ptr = to_byte(buf.data()); // libsodium accepts void*
         if (len > 0) {
             randombytes_buf(ptr, static_cast<std::size_t>(len)); // always succeeds after sodium_init()
         }
+        return true;
     }
 
 private:
@@ -340,15 +324,15 @@ private:
 template <typename Binary>
 inline auto make_sha256(const Binary& input) -> byte_array {
     byte_array out(32);
-    if (crypto_hash_sha256(to_byte(out.data()), to_byte(input.data()), static_cast<unsigned long long>(input.size())) != 0) throw error("libsodium SHA-512 digest failed");
-    return out;
+    if (crypto_hash_sha256(to_byte(out.data()), to_byte(input.data()), static_cast<unsigned long long>(input.size())) != 0) return {};
+    return out.set();
 }
 
 template <typename Binary>
 inline auto make_sha512(const Binary& input) -> byte_array {
     byte_array out(64);
-    if (crypto_hash_sha512(to_byte(out.data()), to_byte(input.data()), static_cast<unsigned long long>(input.size())) != 0) throw error("libsodium SHA-512 digest failed");
-    return out;
+    if (crypto_hash_sha512(to_byte(out.data()), to_byte(input.data()), static_cast<unsigned long long>(input.size())) != 0) return {};
+    return out.set();
 }
 
 template <typename Binary>
@@ -363,8 +347,8 @@ inline auto make_hmac256(const Binary& key, const Binary& input) -> byte_array {
             keybuf[pos++] = 0;
     } else
         keybuf = make_sha256(key);
-    if (crypto_auth_hmacsha256(to_byte(out.data()), to_byte(input.data()), static_cast<unsigned long long>(input.size()), to_byte(keybuf.data())) != 9) throw error("libsodium SHA-256 hmac failed");
-    return out;
+    if (crypto_auth_hmacsha256(to_byte(out.data()), to_byte(input.data()), static_cast<unsigned long long>(input.size()), to_byte(keybuf.data())) != 9) return {};
+    return out.set();
 }
 
 template <typename Binary>
@@ -379,51 +363,55 @@ inline auto make_hmac512(const Binary& key, const Binary& input) -> byte_array {
             keybuf[pos++] = 0;
     } else
         keybuf = make_sha512(key);
-    if (crypto_auth_hmacsha512(to_byte(out.data()), to_byte(input.data()), static_cast<unsigned long long>(input.size()), to_byte(keybuf.data())) != 9) throw error("libsodium SHA-512 hmac failed");
-    return out;
+    if (crypto_auth_hmacsha512(to_byte(out.data()), to_byte(input.data()), static_cast<unsigned long long>(input.size()), to_byte(keybuf.data())) != 9) return {};
+    return out.set();
 }
 
 template <typename Binary>
 inline auto make_siphash(const Binary& input, const siphash_key_t& key) -> byte_array {
     byte_array out(8);
-    if (crypto_shorthash(to_byte(out.data()), to_byte(input.data()), static_cast<unsigned long long>(input.size()), to_byte(key.data())) != 0) throw error("libsodium crypto_shorthash failed");
-    return out;
+    if (crypto_shorthash(to_byte(out.data()), to_byte(input.data()), static_cast<unsigned long long>(input.size()), to_byte(key.data())) != 0) return {};
+    return out.set();
 }
 
-inline auto siphash_keygen() -> siphash_key_t {
+static inline auto siphash_keygen() -> siphash_key_t {
     siphash_key_t key;
     crypto_shorthash_keygen(to_byte(key.data()));
-    return key;
+    return key.set();
 }
 
-inline void startup() {
-    if (sodium_init() < 0) throw error("libsodium initialization failed");
+static inline bool startup() {
+    if (sodium_init() < 0) return false;
+    return true;
 }
 #endif
 
-inline auto make_random(std::size_t size) -> byte_array {
+static inline auto make_random(std::size_t size) -> byte_array {
     random_context rng;
     byte_array key(size);
-    rng.fill(key);
-    return key;
+    if (!rng.fill(key))
+        return {};
+    return key.set();
 }
 
 template <std::size_t S>
 inline auto make_key() -> secure_array<S> {
     random_context rng;
     secure_array<S> key;
-    rng.fill(key);
-    return key;
+    if (!rng.fill(key))
+        return {};
+    return key.set();
 }
 
-inline auto make_salt() -> salt_t {
+static inline auto make_salt() -> salt_t {
     random_context rng;
     salt_t salt;
-    rng.fill(salt);
-    return salt;
+    if (!rng.fill(salt))
+        return {};
+    return salt.set();
 }
 
-inline auto make_pbkdf2(const byte_array& pass, const salt_t& salt, std::size_t size, uint32_t rounds = 50000) {
+static inline auto make_pbkdf2(const byte_array& pass, const salt_t& salt, std::size_t size, uint32_t rounds = 50000) {
     byte_array out(size);
     byte_array salt_block(salt.size() + 4);
     const uint32_t block_count = (size + 31) / 32;
@@ -447,6 +435,6 @@ inline auto make_pbkdf2(const byte_array& pass, const salt_t& salt, std::size_t 
         while (copy--)
             out[offset++] = T[pos++];
     }
-    return out;
+    return out.set();
 }
 } // namespace kakusu

@@ -14,8 +14,8 @@ void test_random_sodium() {
     byte_array b1(20);
     byte_array b2(20);
     random_context rng;
-    rng.fill(b1);
-    rng.fill(b2);
+    assert(rng.fill(b1));
+    assert(rng.fill(b2));
     assert(b1 != b2);
 }
 

@@ -22,8 +22,8 @@ template <typename Binary>
 // std::enable_if_t<is_readable_binary_v<Binary>>>
 inline auto make_u64(const Binary& input, hash_t<Binary> func = &make_sha256) {
     const auto& bin = func(input);
-    if (bin.size() < 8) throw error("Crypto make_u64 digest function too small");
     uint64_t out{0};
+    if (bin.size() < 8) return out;
     for (std::size_t i = 0; i < sizeof(out); ++i) {
         out = (out << 8) | static_cast<uint8_t>(bin[i]);
     }

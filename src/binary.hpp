@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include <stdexcept>
 #include <cstddef>
 #include <cstdint>
 #include <utility>
@@ -16,17 +15,14 @@
 #include <cstring>
 
 namespace kakusu {
-using byte_view = std::string_view;
-using error = std::runtime_error;
-using range = std::out_of_range;
-using invalid = std::invalid_argument;
-using overflow = std::overflow_error;
-
 template <std::size_t S>
 class secure_array final {
 public:
     secure_array() noexcept = default;
-    secure_array(const secure_array& from) noexcept : data_(from.data_) {}
+    secure_array(const secure_array& from) noexcept : empty_(from.empty_) {
+        if (!empty_)
+            memcpy(data_, from.data_, S);
+    }
 
     template <typename Binary>
     explicit secure_array(const Binary& from) noexcept {
@@ -35,11 +31,13 @@ public:
             memcpy(&data_, from.data(), len);
             auto wp = const_cast<void *>(reinterpret_cast<const void *>(from.data()));
             memset(wp, 0, len);
+            empty_ = false;
         }
     }
 
-    secure_array(secure_array&& other) noexcept {
-        memcpy(data(), other.data(), S);
+    secure_array(secure_array&& other) noexcept : empty_(other.empty_) {
+        if (!empty_)
+            memcpy(data(), other.data(), S);
         other.erase();
     }
 
@@ -49,7 +47,9 @@ public:
 
     auto operator=(secure_array&& other) noexcept -> auto& {
         if (this == &other) return *this;
-        memcpy(data(), other.data(), S);
+        empty_ = other.empty_;
+        if (!empty_)
+            memcpy(data(), other.data(), S);
         other.erase();
         return *this;
     }
@@ -57,6 +57,7 @@ public:
     auto operator=(const secure_array& from) noexcept -> auto& {
         if (this == &from) return *this;
         data_ = from.data_;
+        empty_ = from.empty_;
         return *this;
     }
 
@@ -64,6 +65,7 @@ public:
     auto operator=(const Binary& from) noexcept -> secure_array& {
         auto len = std::min(S, from.size());
         if (len) {
+            empty_ = false;
             memcpy(&data_, from.data(), len);
             auto wp = const_cast<void *>(reinterpret_cast<const void *>(from.data()));
             memset(wp, 0, len);
@@ -71,17 +73,33 @@ public:
         return *this;
     }
 
-    // secure array can never be empty...
-    operator bool() const noexcept { return true; }
-    auto operator!() const noexcept { return false; }
-    auto data() const noexcept -> const std::byte * { return data_; };
-    auto data() noexcept -> std::byte * { return data_; };
-    auto size() const noexcept { return S; };
-    auto empty() const noexcept { return false; }
+    constexpr operator bool() const noexcept { return !empty_; }
+    constexpr auto operator!() const noexcept { return empty_; }
+    constexpr auto data() const noexcept -> const std::byte * { return data_; };
+    constexpr auto data() noexcept -> std::byte * { return data_; };
+    constexpr auto size() const noexcept { return empty_ ? 0 : S; };
+    constexpr auto empty() const noexcept { return empty_; }
+
+    auto operator==(const secure_array& other) const noexcept {
+        if (other.empty_ != empty_) return false;
+        return memcmp(data_, other.data_, S) == 0;
+    }
+
+    auto operator!=(const secure_array& other) const noexcept {
+        if (other.empty_ == empty_) return false;
+        return memcmp(data_, other.data_, S) != 0;
+    }
+
+    // Allows crypto functions to return errprs by empty rather than tjrpwomg
+    auto set() noexcept -> secure_array& {
+        empty_ = false;
+        return *this;
+    }
 
 private:
     static_assert(S > 0, "Secure data size invalid");
     std::byte data_[S]{};
+    bool empty_{true};
 
     void erase() noexcept {
         memset(data(), 0, S);
@@ -115,31 +133,31 @@ constexpr auto to_byte(char u) noexcept {
     return static_cast<std::byte>(u);
 }
 
-inline auto to_byte(const uint8_t *data) noexcept {
+static inline auto to_byte(const uint8_t *data) noexcept {
     return reinterpret_cast<const std::byte *>(data);
 }
 
-inline auto to_byte(uint8_t *data) noexcept {
+static inline auto to_byte(uint8_t *data) noexcept {
     return reinterpret_cast<std::byte *>(data);
 }
 
-inline auto to_byte(const char *data) noexcept {
+static inline auto to_byte(const char *data) noexcept {
     return reinterpret_cast<const uint8_t *>(data);
 }
 
-inline auto to_byte(char *data) noexcept {
+static inline auto to_byte(char *data) noexcept {
     return reinterpret_cast<uint8_t *>(data);
 }
 
-inline auto to_byte(const std::byte *data) noexcept {
+static inline auto to_byte(const std::byte *data) noexcept {
     return reinterpret_cast<const uint8_t *>(data);
 }
 
-inline auto to_byte(std::byte *data) noexcept {
+static inline auto to_byte(std::byte *data) noexcept {
     return reinterpret_cast<uint8_t *>(data);
 }
 
-inline auto make_b64_lookup() noexcept {
+static inline auto make_b64_lookup() noexcept {
     std::array<uint8_t, 256> table{};
     table.fill(0xFF); // invalid by default
 
@@ -154,7 +172,7 @@ inline auto make_b64_lookup() noexcept {
     return table;
 }
 
-inline auto make_hex_lookup() noexcept {
+static inline auto make_hex_lookup() noexcept {
     std::array<uint8_t, 256> table{};
     table.fill(0xFF); // Invalid by default
 
@@ -168,7 +186,7 @@ inline auto make_hex_lookup() noexcept {
     return table;
 }
 
-inline auto encode_b64(std::string_view input) noexcept -> std::string {
+static inline auto encode_b64(std::string_view input) noexcept -> std::string {
     static constexpr char alphabet[] =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
@@ -200,7 +218,7 @@ inline auto encode_b64(std::string_view input) noexcept -> std::string {
     return out;
 }
 
-inline auto decode_b64(const std::string& in) noexcept -> std::vector<std::byte> {
+static inline auto decode_b64(const std::string& in) noexcept -> std::vector<std::byte> {
     auto b64_lookup = make_b64_lookup();
     std::vector<std::byte> out;
     const std::size_t len = in.size();
@@ -227,7 +245,7 @@ inline auto decode_b64(const std::string& in) noexcept -> std::vector<std::byte>
     return out;
 }
 
-inline auto encode_hex(std::string_view input) noexcept -> std::string {
+static inline auto encode_hex(std::string_view input) noexcept -> std::string {
     const char hex[] = "0123456789ABCDEF";
     std::string out;
     out.reserve(input.size() * 2);
@@ -239,7 +257,7 @@ inline auto encode_hex(std::string_view input) noexcept -> std::string {
     return out;
 }
 
-inline auto decode_hex(const std::string& in) noexcept -> std::vector<std::byte> {
+static inline auto decode_hex(const std::string& in) noexcept -> std::vector<std::byte> {
     auto hex_lookup = make_hex_lookup();
     if (in.size() % 2 != 0) return {};
     std::vector<std::byte> out;
@@ -262,7 +280,7 @@ public:
 
     byte_array(const void *data, std::size_t size) : buffer_{static_cast<const char *>(data), static_cast<const char *>(data) + size} {}
 
-    explicit byte_array(byte_view& view) : buffer_{view.begin(), view.end()} {}
+    explicit byte_array(std::string_view& view) : buffer_{view.begin(), view.end()} {}
 
     explicit byte_array(std::size_t size) : buffer_(size) {}
 
@@ -314,8 +332,8 @@ public:
     auto size() const noexcept -> std::size_t { return buffer_.size(); }
     auto capacity() const noexcept -> std::size_t { return buffer_.capacity(); }
 
-    auto view() const noexcept -> byte_view {
-        return byte_view{buffer_.data(), buffer_.size()};
+    auto view() const noexcept -> std::string_view {
+        return std::string_view{buffer_.data(), buffer_.size()};
     }
 
     void swap(byte_array& other) noexcept {
@@ -358,16 +376,14 @@ public:
 
     auto slice(std::size_t start = 0, std::size_t end = std::numeric_limits<std::size_t>::max()) const -> byte_array {
         const auto actual_end = std::min(end, size());
-        if (start > actual_end)
-            throw range{"Invalid slice range"};
+        if (start > actual_end) return {};
         return byte_array{data() + start, actual_end - start};
     }
 
-    auto subview(std::size_t offset, std::size_t count = std::numeric_limits<std::size_t>::max()) const -> byte_view {
+    auto subview(std::size_t offset, std::size_t count = std::numeric_limits<std::size_t>::max()) const -> std::string_view {
         const auto actual_end = std::min(offset + count, size());
-        if (offset > actual_end)
-            throw range{"Invalid subspan range"};
-        return byte_view{data() + offset, actual_end - offset};
+        if (offset > actual_end) return {};
+        return std::string_view{data() + offset, actual_end - offset};
     }
 
     void clear() noexcept { buffer_.clear(); }
@@ -400,6 +416,9 @@ public:
         return encode_hex(view());
     }
 
+    // Temporary fix so we can emulate secure array beavior...
+    auto set() { return *this; }
+
     static auto from_hex(const std::string& hex) -> byte_array {
         return byte_array{decode_hex(hex)};
     }
@@ -416,7 +435,7 @@ private:
     }
 };
 
-inline auto operator<<(std::ostream& out, const byte_array& bytes) -> std::ostream& {
+static inline auto operator<<(std::ostream& out, const byte_array& bytes) -> std::ostream& {
     if (!bytes.empty())
         out << bytes.to_hex();
     else
@@ -424,23 +443,23 @@ inline auto operator<<(std::ostream& out, const byte_array& bytes) -> std::ostre
     return out;
 }
 
-inline auto to_string(const kakusu::byte_array& ba) {
+static inline auto to_string(const kakusu::byte_array& ba) {
     return ba.to_hex();
 }
 
 template <typename T>
-inline auto to_byte_view(const T& obj) -> byte_view {
+inline auto to_string_view(const T& obj) -> std::string_view {
     return std::string_view(reinterpret_cast<const char *>(obj.data()), obj.size());
 }
 
 template <typename Binary>
 inline auto to_b64(const Binary& bin) {
-    return encode_b64(to_byte_view(bin));
+    return encode_b64(to_string_view(bin));
 }
 
 template <typename Binary>
 inline auto to_hex(const Binary& bin) {
-    return encode_hex(to_byte_view(bin));
+    return encode_hex(to_string_view(bin));
 }
 } // namespace kakusu
 

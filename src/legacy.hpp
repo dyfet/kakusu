@@ -19,7 +19,7 @@ inline auto make_md5(const Binary& input) -> byte_array {
     mc_md5_init(&ctx);
     mc_md5_update(&ctx, get, input.size());
     mc_md5_final(&ctx, put);
-    return out;
+    return out.set();
 }
 
 class md5_t final : public streambuf<mc_md5_ctx, MC_MD5_DIGEST_SIZE> {
@@ -43,7 +43,7 @@ inline auto make_sha1(const Binary& input) -> byte_array {
     mc_sha1_init(&ctx);
     mc_sha1_update(&ctx, get, input.size());
     mc_sha1_final(&ctx, put);
-    return out;
+    return out.set();
 }
 
 class sha1_t final : public streambuf<mc_sha1_ctx, MC_SHA1_DIGEST_SIZE> {
@@ -68,9 +68,9 @@ inline auto make_md5(const Binary& input) -> byte_array {
     constexpr std::size_t md5_size = 16;
     byte_array out(md5_size);
     unsigned int out_len = 0;
-    if (!EVP_Digest(input.data(), input.size(), reinterpret_cast<unsigned char *>(out.data()), &out_len, EVP_md5(), nullptr)) throw error("MD5 digest failed");
-    if (out_len != md5_size) error("ND5 Digest unexpected output size");
-    return out;
+    if (!EVP_Digest(input.data(), input.size(), reinterpret_cast<unsigned char *>(out.data()), &out_len, EVP_md5(), nullptr)) return {};
+    if (out_len != md5_size) return {};
+    return out.set();
 }
 
 template <typename Binary>
@@ -78,9 +78,9 @@ inline auto make_sha1(const Binary& input) -> byte_array {
     constexpr std::size_t sha1_size = 20;
     byte_array out(sha1_size);
     unsigned int out_len = 0;
-    if (!EVP_Digest(input.data(), input.size(), reinterpret_cast<unsigned char *>(out.data()), &out_len, EVP_sha1(), nullptr)) throw error("SHA1 digest failed");
-    if (out_len != sha1_size) error("ND5 Digest unexpected output size");
-    return out;
+    if (!EVP_Digest(input.data(), input.size(), reinterpret_cast<unsigned char *>(out.data()), &out_len, EVP_sha1(), nullptr)) return {};
+    if (out_len != sha1_size) return {};
+    return out.set();
 }
 
 class md5_t final : public streambuf<EVP_MD_CTX *, 16> {

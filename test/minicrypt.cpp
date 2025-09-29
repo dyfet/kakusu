@@ -16,8 +16,8 @@ void test_random_openssl() {
     byte_array b1(20);
     byte_array b2(20);
     random_context rng;
-    rng.fill(b1);
-    rng.fill(b2);
+    assert(rng.fill(b1));
+    assert(rng.fill(b2));
     assert(b1 != b2);
 }
 
@@ -43,6 +43,7 @@ void test_digest_stream() {
     auto hex = to_hex(sha256);
     auto verify = make_sha256(std::string_view("hello"));
     auto out = verify.to_hex();
+    assert(!verify.empty());
     assert(out == hex);
 }
 } // end namespace
