@@ -10,13 +10,15 @@
 using namespace kakusu;
 
 namespace {
-void test_random_sodium() {
-    byte_array b1(20);
-    byte_array b2(20);
-    random_context rng;
-    assert(rng.fill(b1));
-    assert(rng.fill(b2));
+void test_random_keygen() {
+    aes256_key_t b1, b2;
+    assert(init_key(b1));
+    assert(init_key(b2));
     assert(b1 != b2);
+
+    salt_t s1, s2;
+    assert(init_salt(s1));
+    assert(init_salt(s2));
 }
 
 void test_hash_ring() {
@@ -40,7 +42,7 @@ void test_hash_ring() {
 auto main(int /* argc */, char ** /* argv */) -> int {
     try {
         startup();
-        test_random_sodium();
+        test_random_keygen();
         test_hash_ring();
     } catch (...) {
         return -1;

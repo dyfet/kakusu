@@ -11,20 +11,23 @@
 using namespace kakusu;
 
 namespace {
-void test_random_wolfssl() {
-    byte_array b1(20);
-    byte_array b2(20);
-    random_context rng;
-    assert(rng.fill(b1));
-    assert(rng.fill(b2));
+void test_random_keygen() {
+    aes256_key_t b1, b2;
+    assert(init_key(b1));
+    assert(init_key(b2));
     assert(b1 != b2);
+
+    salt_t s1, s2;
+    assert(init_salt(s1));
+    assert(init_salt(s2));
 }
 
 void test_digest_stream() {
     digest_stream<sha256_t> sha256;
     sha256 << "hello";
     auto hex = to_hex(sha256);
-    auto verify = make_sha256(std::string_view("hello"));
+    sha256_digest_t verify;
+    assert(init_digest(verify, std::string_view("hello")));
     auto out = verify.to_hex();
     assert(!verify.empty());
     assert(out == hex);
@@ -50,7 +53,7 @@ void test_hash_ring() {
 auto main(int /* argc */, char ** /* argv */) -> int {
     try {
         startup();
-        test_random_wolfssl();
+        test_random_keygen();
         test_hash_ring();
         test_digest_stream();
     } catch (...) {

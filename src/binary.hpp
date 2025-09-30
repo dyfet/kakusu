@@ -96,14 +96,6 @@ public:
         return out;
     }
 
-    // TODO: Remove this
-    // Transitional helper to make compatible with older binary key fix
-    auto set() noexcept -> secure_array& {
-        empty_ = false;
-        return *this;
-    }
-
-    // Helper we will use in init and real functions going forward
     auto fill(bool flag = true) noexcept {
         if (flag) empty_ = false;
         return flag;
