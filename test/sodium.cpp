@@ -24,18 +24,17 @@ void test_random_keygen() {
 void test_hash_ring() {
     ring64<> ring;
     assert(ring.insert("nodeA"));
-    /*    assert(ring.insert("nodeB"));
-        assert(ring.insert("nodeC"));
-        assert(ring.size() == 3);
-        assert(ring.usage() > 200);
+    assert(ring.insert("nodeB"));
+    assert(ring.insert("nodeC"));
+    assert(ring.size() == 3);
+    assert(ring.usage() > 200);
 
-        const std::string key = "user:67";
-        assert(ring.get(key) == "nodeC");
+    const std::string key = "user:67";
+    assert(ring.get(key) == "nodeC");
 
-        assert(ring.remove("nodeB"));
-        assert(!ring.remove("nodeD"));
-        assert(ring.usage() <= 200);
-    */
+    assert(ring.remove("nodeB"));
+    assert(!ring.remove("nodeD"));
+    assert(ring.usage() <= 200);
 }
 } // end namespace
 

@@ -11,6 +11,17 @@
 
 namespace kakusu {
 template <typename Binary>
+inline auto init_digest(md5_digest_t& out, const Binary& input) {
+    auto const get = reinterpret_cast<const uint8_t *>(input.data());
+    out.clear();
+    mc_md5_ctx ctx;
+    mc_md5_init(&ctx);
+    mc_md5_update(&ctx, get, input.size());
+    mc_md5_final(&ctx, out.to_byte());
+    return out.fill();
+}
+
+template <typename Binary>
 inline auto make_md5(const Binary& input) -> byte_array {
     byte_array out(MC_MD5_DIGEST_SIZE);
     mc_md5_ctx ctx;
@@ -33,6 +44,17 @@ private:
 
     auto finish() -> bool final { return mc_md5_final(&ctx_, out()) == 0; }
 };
+
+template <typename Binary>
+inline auto init_digest(sha1_digest_t& out, const Binary& input) {
+    auto const get = reinterpret_cast<const uint8_t *>(input.data());
+    out.clear();
+    mc_sha1_ctx ctx;
+    mc_sha1_init(&ctx);
+    mc_sha1_update(&ctx, get, input.size());
+    mc_sha1_final(&ctx, out.to_byte());
+    return out.fill();
+}
 
 template <typename Binary>
 inline auto make_sha1(const Binary& input) -> byte_array {
@@ -64,6 +86,16 @@ private:
 
 namespace kakusu {
 template <typename Binary>
+inline auto init_digest(md5_digest_t& out, const Binary& input) {
+    constexpr std::size_t md5_size = 16;
+    unsigned int out_len = 0;
+    out.clear();
+    if (!EVP_Digest(input.data(), input.size(), out.to_byte(), &out_len, EVP_md5(), nullptr)) return false;
+    if (out_len != md5_size) return false;
+    return out.fill();
+}
+
+template <typename Binary>
 inline auto make_md5(const Binary& input) -> byte_array {
     constexpr std::size_t md5_size = 16;
     byte_array out(md5_size);
@@ -71,6 +103,16 @@ inline auto make_md5(const Binary& input) -> byte_array {
     if (!EVP_Digest(input.data(), input.size(), reinterpret_cast<unsigned char *>(out.data()), &out_len, EVP_md5(), nullptr)) return {};
     if (out_len != md5_size) return {};
     return out.set();
+}
+
+template <typename Binary>
+inline auto init_digest(sha1_digest_t& out, const Binary& input) {
+    constexpr std::size_t sha1_size = 20;
+    unsigned int out_len = 0;
+    out.clear();
+    if (!EVP_Digest(input.data(), input.size(), out.to_byte(), &out_len, EVP_sha1(), nullptr)) return false;
+    if (out_len != sha1_size) return false;
+    return out.fill();
 }
 
 template <typename Binary>
