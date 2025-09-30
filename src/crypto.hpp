@@ -397,12 +397,12 @@ static inline auto make_random(std::size_t size) -> byte_array {
 template <std::size_t S>
 inline auto init_key(secure_array<S>& key) {
     random_context rng;
-    return rng.fill(key);
+    return key.fill(rng.fill(key));
 }
 
 static inline auto init_salt(salt_t& salt) {
     random_context rng;
-    return rng.fill(salt);
+    return salt.fill(rng.fill(salt));
 }
 
 static inline auto make_pbkdf2(const byte_array& pass, const salt_t& salt, std::size_t size, uint32_t rounds = 50000) {

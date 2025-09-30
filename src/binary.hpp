@@ -75,10 +75,17 @@ public:
         return memcmp(data_, other.data_, S) != 0;
     }
 
-    // Allows crypto functions to return errprs by empty rather than tjrpwomg
+    // TODO: Remove this
+    // Transitional helper to make compatible with older binary key fix
     auto set() noexcept -> secure_array& {
         empty_ = false;
         return *this;
+    }
+
+    // Helper we will use in init and real functions going forward
+    auto fill(bool flag = true) {
+        if (flag) empty_ = false;
+        return flag;
     }
 
 private:
