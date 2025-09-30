@@ -546,18 +546,49 @@ static inline bool startup() {
 }
 #endif
 
+template <std::size_t S>
+inline auto init_key(secure_array<S>& key) {
+    random_context rng;
+    return key.fill(rng.fill(key));
+}
+
+template <typename Binary, typename Digest = sha256_digest_t>
+inline auto to_u64(const Binary& input) {
+    static_assert(sizeof(Digest) >= sizeof(uint64_t));
+    Digest digest;
+    if (!init_digest(digest, input)) return static_cast<uint64_t>(-1);
+    uint64_t out{0};
+    const auto bin = digest.to_byte();
+    for (std::size_t i = 0; i < sizeof(out); ++i) {
+        out = (out << 8) | static_cast<uint8_t>(bin[i]);
+    }
+    return out;
+}
+
+template <std::size_t Bits, typename Binary, typename Digest = sha256_digest_t>
+inline auto to_reduced(const Binary& input) {
+    static_assert(Bits >= 1 && Bits <= 64, "hash_reduce: Bits must be in the range [1, 64]");
+    if constexpr (Bits == 64) {
+        return to_u64<Binary, Digest>(input);
+    } else {
+        return to_u64<Binary, Digest>(input) & ((1ULL << Bits) - 1);
+    }
+}
+
+// Used to ake a std::hash_t key
+template <typename T>
+struct key_index final {
+    auto operator()(const T& key) const {
+        return to_reduced<sizeof(std::size_t) * 8>(key);
+    }
+};
+
 static inline auto make_random(std::size_t size) -> byte_array {
     random_context rng;
     byte_array key(size);
     if (!rng.fill(key))
         return {};
     return key.set();
-}
-
-template <std::size_t S>
-inline auto init_key(secure_array<S>& key) {
-    random_context rng;
-    return key.fill(rng.fill(key));
 }
 
 static inline auto init_salt(salt_t& salt) {

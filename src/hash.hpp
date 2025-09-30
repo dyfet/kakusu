@@ -40,13 +40,6 @@ inline auto hash_reduce(const Binary& input, hash_t<Binary> func = &make_sha256)
     }
 }
 
-template <typename T>
-struct hash_index final {
-    auto operator()(const T& key) const {
-        return hash_reduce<sizeof(std::size_t) * 8>(key);
-    }
-};
-
 template <typename Key = std::string, const hash_t<std::string> Hash = &make_sha256>
 class ring64 {
 public:
