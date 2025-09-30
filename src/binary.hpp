@@ -75,6 +75,27 @@ public:
         return memcmp(data_, other.data_, S) != 0;
     }
 
+    auto to_byte() noexcept {
+        return reinterpret_cast<uint8_t *>(&data_);
+    }
+
+    auto to_byte() const noexcept {
+        return reinterpret_cast<const uint8_t *>(&data_);
+    }
+
+    auto to_hex() const noexcept -> std::string {
+        constexpr char hex[] = "0123456789ABCDEF";
+        std::string out;
+        out.reserve(S * 2);
+        std::size_t pos{0};
+        while (pos < S) {
+            auto val = uint8_t(data_[pos++]);
+            out.push_back(hex[val >> 4]);
+            out.push_back(hex[val & 0x0f]);
+        }
+        return out;
+    }
+
     // TODO: Remove this
     // Transitional helper to make compatible with older binary key fix
     auto set() noexcept -> secure_array& {
@@ -83,9 +104,14 @@ public:
     }
 
     // Helper we will use in init and real functions going forward
-    auto fill(bool flag = true) {
+    auto fill(bool flag = true) noexcept {
         if (flag) empty_ = false;
         return flag;
+    }
+
+    void clear() noexcept {
+        if (!empty_) erase();
+        empty_ = true;
     }
 
 private:

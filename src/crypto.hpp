@@ -272,6 +272,19 @@ private:
     mc_random_ctx rng_;
 };
 
+template <typename Source>
+inline auto init_sha256(sha256_digest_t& out, const Source& input, const salt_t& salt = {}) {
+    mc_sha256_ctx ctx;
+    auto const get = to_byte(input.data());
+    auto put = to_byte(out.data());
+    mc_sha256_init(&ctx);
+    if (!salt.empty())
+        mc_sha256_update(&ctx, to_byte(salt.data()), salt.size());
+    mc_sha256_update(&ctx, get, input.size());
+    mc_sha256_final(&ctx, put);
+    return out.fill();
+}
+
 template <typename Binary>
 inline auto make_sha256(const Binary& input) -> byte_array {
     byte_array out(MC_SHA256_DIGEST_SIZE);
@@ -285,7 +298,16 @@ inline auto make_sha256(const Binary& input) -> byte_array {
 }
 
 template <typename Binary>
-inline auto make_hmac256(const Binary& key, const Binary& input) -> byte_array {
+inline auto init_hmac256(sha256_digest_t& out, const Binary& key, const Binary& input) {
+    auto const get = to_byte(input.data());
+    auto const kv = to_byte(key.data());
+    // auto put = to_byte(out.data());
+    mc_hmac_sha256(kv, key.size(), get, input.size(), out.to_byte());
+    return out.fill();
+}
+
+template <typename Binary>
+inline auto make_hmac256(const Binary& key, const Binary& input) {
     byte_array out(MC_SHA256_DIGEST_SIZE);
     auto const get = to_byte(input.data());
     auto const kv = to_byte(key.data());
