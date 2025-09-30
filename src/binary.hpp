@@ -62,7 +62,7 @@ public:
     constexpr auto operator!() const noexcept { return empty_; }
     constexpr auto data() const noexcept -> const std::byte * { return data_; };
     constexpr auto data() noexcept -> std::byte * { return data_; };
-    constexpr auto size() const noexcept { return empty_ ? 0 : S; };
+    constexpr auto size() const noexcept { return S; };
     constexpr auto empty() const noexcept { return empty_; }
 
     auto operator==(const secure_array& other) const noexcept {
@@ -71,7 +71,7 @@ public:
     }
 
     auto operator!=(const secure_array& other) const noexcept {
-        if (other.empty_ == empty_) return false;
+        if (other.empty_ != empty_) return true;
         return memcmp(data_, other.data_, S) != 0;
     }
 

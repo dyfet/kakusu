@@ -463,7 +463,7 @@ static inline auto make_random(std::size_t size) -> byte_array {
 template <std::size_t S>
 inline auto init_key(secure_array<S>& key) {
     random_context rng;
-    return key.fill(rng.fill(key));
+    return  key.fill(rng.fill(key));
 }
 
 static inline auto init_salt(salt_t& salt) {
