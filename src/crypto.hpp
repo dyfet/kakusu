@@ -64,6 +64,28 @@ public:
 };
 
 template <typename Binary>
+inline auto init_digest(sha256_digest_t& out, const Binary& input) {
+    constexpr std::size_t sha_size = 32;
+    unsigned int out_len = 0;
+    auto ip = to_byte(input.data());
+    out.clear();
+    if (!EVP_Digest(ip, input.size(), out.to_byte(), &out_len, EVP_sha256(), nullptr)) return false;
+    if (out_len != sha_size) return false;
+    return out.fill();
+}
+
+template <typename Binary>
+inline auto init_digest(sha512_digest_t& out, const Binary& input) {
+    constexpr std::size_t sha_size = 64;
+    unsigned int out_len = 0;
+    auto ip = to_byte(input.data());
+    out.clear();
+    if (!EVP_Digest(ip, input.size(), out.to_byte(), &out_len, EVP_sha512(), nullptr)) return false;
+    if (out_len != sha_size) return false;
+    return out.fill();
+}
+
+template <typename Binary>
 inline auto make_sha256(const Binary& input) -> byte_array {
     constexpr std::size_t sha_size = 32;
     byte_array out(sha_size);
@@ -83,6 +105,30 @@ inline auto make_sha512(const Binary& input) -> byte_array {
     if (!EVP_Digest(ip, input.size(), to_byte(out.data()), &out_len, EVP_sha512(), nullptr)) return {};
     if (out_len != sha_size) return {};
     return out.set();
+}
+
+template <typename Binary>
+inline auto init_hmac(sha256_digest_t& out, const Binary& key, const Binary& input) {
+    constexpr std::size_t sha_size = 32;
+    unsigned int out_len = 0;
+    auto kp = to_byte(key.data());
+    auto ip = to_byte(input.data());
+    out.clear();
+    if (!HMAC(EVP_sha256(), kp, key.size(), ip, input.size(), out.to_byte(), &out_len)) return false;
+    if (out_len != sha_size) return false;
+    return out.fill();
+}
+
+template <typename Binary>
+inline auto init_hmac(sha512_digest_t& out, const Binary& key, const Binary& input) {
+    constexpr std::size_t sha_size = 64;
+    unsigned int out_len = 0;
+    auto kp = to_byte(key.data());
+    auto ip = to_byte(input.data());
+    out.clear();
+    if (!HMAC(EVP_sha512(), kp, key.size(), ip, input.size(), out.to_byte(), &out_len)) return false;
+    if (out_len != sha_size) return false;
+    return out.fill();
 }
 
 template <typename Binary>
@@ -273,13 +319,11 @@ private:
 };
 
 template <typename Source>
-inline auto init_sha256(sha256_digest_t& out, const Source& input, const salt_t& salt = {}) {
+inline auto init_digest(sha256_digest_t& out, const Source& input) {
     mc_sha256_ctx ctx;
     auto const get = to_byte(input.data());
     auto put = to_byte(out.data());
     mc_sha256_init(&ctx);
-    if (!salt.empty())
-        mc_sha256_update(&ctx, to_byte(salt.data()), salt.size());
     mc_sha256_update(&ctx, get, input.size());
     mc_sha256_final(&ctx, put);
     return out.fill();
@@ -298,7 +342,7 @@ inline auto make_sha256(const Binary& input) -> byte_array {
 }
 
 template <typename Binary>
-inline auto init_hmac256(sha256_digest_t& out, const Binary& key, const Binary& input) {
+inline auto init_hmac(sha256_digest_t& out, const Binary& key, const Binary& input) {
     auto const get = to_byte(input.data());
     auto const kv = to_byte(key.data());
     // auto put = to_byte(out.data());

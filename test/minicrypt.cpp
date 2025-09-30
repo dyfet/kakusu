@@ -42,7 +42,7 @@ void test_digest_stream() {
     sha256 << "hello";
     auto hex = to_hex(sha256);
     sha256_digest_t verify;
-    assert(init_sha256(verify, std::string_view("hello")));
+    assert(init_digest(verify, std::string_view("hello")));
     auto out = verify.to_hex();
     assert(!verify.empty());
     assert(out == hex);
