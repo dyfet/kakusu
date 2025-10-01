@@ -15,42 +15,15 @@
 #endif
 
 namespace kakusu {
-template <typename Binary>
-using hash_t = byte_array (*)(const Binary&);
-
-template <typename Binary>
-// std::enable_if_t<is_readable_binary_v<Binary>>>
-inline auto make_u64(const Binary& input, hash_t<Binary> func = &make_sha256) {
-    const auto& bin = func(input);
-    uint64_t out{0};
-    if (bin.size() < 8) return out;
-    for (std::size_t i = 0; i < sizeof(out); ++i) {
-        out = (out << 8) | static_cast<uint8_t>(bin[i]);
-    }
-    return out;
-}
-
-template <std::size_t Bits, typename Binary>
-inline auto hash_reduce(const Binary& input, hash_t<Binary> func = &make_sha256) {
-    static_assert(Bits >= 1 && Bits <= 64, "hash_reduce: Bits must be in the range [1, 64]");
-    if constexpr (Bits == 64) {
-        return make_u64(input, func);
-    } else {
-        return make_u64(input, func) & ((1ULL << Bits) - 1);
-    }
-}
-
-template <typename Key = std::string, const hash_t<std::string> Hash = &make_sha256>
+template <typename Key = std::string, typename Digest = sha256_digest_t>
 class ring64 {
 public:
     explicit ring64(int vnodes = 100) : vnodes_(vnodes) {}
 
     ring64(std::initializer_list<std::string> nodes, int vnodes = 100) : vnodes_(vnodes) {
+        Digest digest;
         for (const auto& node : nodes) {
-            for (auto i = 0; i < vnodes_; ++i) {
-                const std::string vnode = node + "#" + std::to_string(i);
-                ring_.emplace(make_u64(vnode, Hash), node);
-            }
+            insert(node);
         }
     }
 
@@ -90,12 +63,13 @@ public:
         return ring_.size();
     }
 
-    auto insert(const std::string& node) {
+    auto insert(const std::string& node) -> bool {
         bool inserted = false;
         const std::unique_lock lock(mutex_);
+        Digest digest;
         for (auto i = 0; i < vnodes_; ++i) {
             const std::string vnode = node + "#" + std::to_string(i);
-            auto [_, success] = ring_.emplace(make_u64(vnode, Hash), node);
+            auto [_, success] = ring_.emplace(to_u64<Key, Digest>(vnode), node);
             if (success)
                 inserted = true;
         }
@@ -107,9 +81,10 @@ public:
     auto remove(const std::string& node) {
         bool removed = false;
         const std::unique_lock lock(mutex_);
+        Digest digest;
         for (int i = 0; i < vnodes_; ++i) {
             const std::string vnode = node + "#" + std::to_string(i);
-            auto index = make_u64(vnode, Hash);
+            auto index = to_u64<Key, Digest>(vnode);
             auto it = ring_.find(index);
             if (it != ring_.end() && it->second == node) {
                 ring_.erase(it);
@@ -124,7 +99,7 @@ public:
 
     auto get(const Key& key) const -> const std::string& {
         const std::shared_lock lock(mutex_);
-        auto hash = make_u64(to_string(key), Hash);
+        auto hash = to_u64<Key, Digest>(to_string(key));
         auto it = ring_.lower_bound(hash);
         if (it == ring_.end())
             it = ring_.begin();

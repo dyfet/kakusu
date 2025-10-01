@@ -4,7 +4,7 @@
 #define KAKUSU_CRYPTO_OPENSSL
 
 #undef NDEBUG
-#include "hash.hpp"
+#include "ring.hpp"
 #include "legacy.hpp"
 #include <cassert>
 

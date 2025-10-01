@@ -4,7 +4,7 @@
 #define KAKUSU_CRYPTO_SODIUM
 
 #undef NDEBUG
-#include "hash.hpp"
+#include "ring.hpp"
 #include <cassert>
 
 using namespace kakusu;

@@ -4,7 +4,7 @@
 #define KAKUSU_CRYPTO_MINICRYPT
 
 #undef NDEBUG
-#include "hash.hpp"
+#include "ring.hpp"
 #include "crypto.hpp"
 #include "legacy.hpp"
 #include <cassert>

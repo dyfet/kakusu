@@ -4,7 +4,7 @@
 #define KAKUSU_CRYPTO_WOLFSSL
 
 #undef NDEBUG
-#include "hash.hpp"
+#include "ring.hpp"
 #include "digests.hpp"
 #include <cassert>
 
