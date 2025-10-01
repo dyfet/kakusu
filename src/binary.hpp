@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2025 David Sugar <tychosoft@gmail.com>
 
 #pragma once
@@ -76,6 +76,24 @@ public:
     auto operator!=(const secure_array& other) const noexcept {
         if (other.empty_ != empty_) return true;
         return memcmp(data_, other.data_, S) != 0;
+    }
+
+    auto operator^=(const secure_array& other) noexcept {
+        for (unsigned pos = 0; pos < S; ++pos) {
+            data_[pos] ^= other.data_[pos];
+        }
+    }
+
+    auto operator&=(const secure_array& other) noexcept {
+        for (unsigned pos = 0; pos < S; ++pos) {
+            data_[pos] &= other.data_[pos];
+        }
+    }
+
+    auto operator|=(const secure_array& other) noexcept {
+        for (unsigned pos = 0; pos < S; ++pos) {
+            data_[pos] |= other.data_[pos];
+        }
     }
 
     auto to_byte() noexcept {

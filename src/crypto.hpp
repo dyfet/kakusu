@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2025 David Sugar <tychosoft@gmail.com>
 
 #pragma once
@@ -453,8 +453,7 @@ static inline auto init_pbkdf2(Key& out, std::string_view pass, const salt_t& sa
         for (uint32_t j = 1; j < rounds; ++j) {
             C = U;
             init_hmac(U, pass, C);
-            for (int k = 0; k < 32; ++k)
-                T[k] ^= U[k]; // NOLINT
+            T ^= U;
         }
         uint32_t offset = (i - 1) * 32;
         uint32_t copy = (offset + 32 > out.size()) ? out.size() - offset : 32;

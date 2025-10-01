@@ -1,5 +1,5 @@
-// Copyright (C) 2025 Tycho Softworks.
-// This code is licensed under MIT license.
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (C) 2025 David Sugar <tychosoft@gmail.com>
 
 #undef NDEBUG
 #include "binary.hpp"

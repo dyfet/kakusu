@@ -41,24 +41,26 @@ other distributions where HPX is supported.
 
 ## Licensing
 
-Busuto Copyright (C) 2025 David Sugar <tychosoft@gmail.comSug>,
+This package has recently been re-licensed as Apache 2.0. It had been licensed
+as GPL 3.0 prior to release 0.2.1. The net effect for all existing use cases is
+the same, It can be combined with any GPL 3.0 (or later) licensed code
+effectively as GPL 3.0 in a combined work, and it's use with any GPL 2.0 or
+later work effectively makes the combined work GPL 3.0, just like before.
 
-This program is free software: you can redistribute it and/or modify it under
-the terms of the GNU General Public License as published by the Free Software
-Foundation, either version 3 of the License, or (at your option) any later
-version.
+The net effect of combining this work with another Apache 2.0 licensed work of
+course is a combined work on Apache 2.0 terms. While Kakusu is at the moment
+entirely stand-alone, this will likely change as well as how and where one may
+acquire Kakusu and how or where one might be able to receive commercial support
+in the near future, but it will remain Apache licensed. The API had also been
+better aligned for C++ embedded uses as of the 2.0 release.
 
-This program is distributed in the hope that it will be useful, but WITHOUT ANY
-WARRANTY; without even the implied warranty of <C-F11>MERCHANTABILITY or
-FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
-details.
-
-NOTE: As primarily a header based library where functional code residing in
-headers that are either directly called or instancianted and called by user
-applications, it is strongly believed any use of this library constitutes and
-efffectively produces a derivitive or combined work, per the GPL, and this is
-intentional. As the sole copyright holder I can also offer other forms of
-commercial licensing under different tterms.
+While all other back-ends are Apache licensing compatible, the inclusion and
+use of Wolfcrypt as a back-end forces any combined work or product made with
+the wolfcrypt back-end to be licensed as GPL 3.0 or later as well. The GPL is
+very good for end-user products, but horrible for frameworks like Kakusu
+because it then imposes itself on other people's works. It is very possible the
+woldcrypt back-end will be dropped from mainline headers in the future, and
+perhaps appear as an optional header to prevent accidental use.
 
 ## Participation
 
