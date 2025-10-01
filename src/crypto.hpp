@@ -107,8 +107,8 @@ inline auto make_sha512(const Binary& input) -> byte_array {
     return out.set();
 }
 
-template <typename Binary>
-inline auto init_hmac(sha256_digest_t& out, const Binary& key, const Binary& input) {
+template <typename Key, typename Binary = Key>
+inline auto init_hmac(sha256_digest_t& out, const Key& key, const Binary& input) {
     constexpr std::size_t sha_size = 32;
     unsigned int out_len = 0;
     auto kp = to_byte(key.data());
@@ -119,8 +119,8 @@ inline auto init_hmac(sha256_digest_t& out, const Binary& key, const Binary& inp
     return out.fill();
 }
 
-template <typename Binary>
-inline auto init_hmac(sha512_digest_t& out, const Binary& key, const Binary& input) {
+template <typename Key, typename Binary = Key>
+inline auto init_hmac(sha512_digest_t& out, const Key& key, const Binary& input) {
     constexpr std::size_t sha_size = 64;
     unsigned int out_len = 0;
     auto kp = to_byte(key.data());
@@ -285,8 +285,8 @@ private:
     Hmac hmac_{};
 };
 
-template <typename Binary>
-inline auto init_hmac(sha256_digest_t& out, const Binary& key, const Binary& input) {
+template <typename Key, typename Binary>
+inline auto init_hmac(sha256_digest_t& out, const Key& key, const Binary& input) {
     auto const get = to_byte(input.data());
     auto const kp = to_byte(key.data());
     hmac_context hmac;
@@ -298,8 +298,8 @@ inline auto init_hmac(sha256_digest_t& out, const Binary& key, const Binary& inp
     return out.fill();
 }
 
-template <typename Binary>
-inline auto init_hmac(sha512_digest_t& out, const Binary& key, const Binary& input) {
+template <typename Key, typename Binary = Key>
+inline auto init_hmac(sha512_digest_t& out, const Key& key, const Binary& input) {
     auto const get = to_byte(input.data());
     auto const kp = to_byte(key.data());
     hmac_context hmac;
@@ -388,8 +388,8 @@ inline auto make_sha256(const Binary& input) -> byte_array {
     return out.set();
 }
 
-template <typename Binary>
-inline auto init_hmac(sha256_digest_t& out, const Binary& key, const Binary& input) {
+template <typename Key, typename Binary = Key>
+inline auto init_hmac(sha256_digest_t& out, const Key& key, const Binary& input) {
     auto const get = to_byte(input.data());
     auto const kv = to_byte(key.data());
     // auto put = to_byte(out.data());
@@ -462,8 +462,8 @@ inline auto make_sha512(const Binary& input) -> byte_array {
     return out.set();
 }
 
-template <typename Binary>
-inline auto init_hmac(sha256_digest_t& out, const Binary& key, const Binary& input) {
+template <typename Key, typename Binary>
+inline auto init_hmac(sha256_digest_t& out, const Key& key, const Binary& input) {
     sha256_digest_t keybuf;
     if (key.size() <= keybuf.size()) {
         auto to = keybuf.data();
@@ -479,8 +479,8 @@ inline auto init_hmac(sha256_digest_t& out, const Binary& key, const Binary& inp
     return out.fill();
 }
 
-template <typename Binary>
-inline auto init_hmac(sha512_digest_t& out, const Binary& key, const Binary& input) {
+template <typename Key, typename Binary = Key>
+inline auto init_hmac(sha512_digest_t& out, const Key& key, const Binary& input) {
     sha512_digest_t keybuf;
     if (key.size() <= keybuf.size()) {
         auto to = keybuf.data();
@@ -596,10 +596,12 @@ static inline auto init_salt(salt_t& salt) {
     return salt.fill(rng.fill(salt));
 }
 
-static inline auto make_pbkdf2(const byte_array& pass, const salt_t& salt, std::size_t size, uint32_t rounds = 50000) {
-    byte_array out(size);
-    byte_array salt_block(salt.size() + 4);
-    const uint32_t block_count = (size + 31) / 32;
+template <typename Key, typename Digest = sha256_digest_t>
+static inline auto init_pbkdf2(Key& out, std::string_view pass, const salt_t& salt, uint32_t rounds = 50000) {
+    using salt_block_t = secure_array<sizeof(salt_t) + 4>;
+    salt_block_t salt_block;
+    out.clear();
+    const uint32_t block_count = (out.size() + 31) / 32;
     for (uint32_t i = 1; i <= block_count; ++i) {
         memcpy(salt_block.data(), salt.data(), salt.size());
         auto sp = to_byte(salt_block.data());
@@ -607,19 +609,21 @@ static inline auto make_pbkdf2(const byte_array& pass, const salt_t& salt, std::
         sp[salt.size() + 1] = static_cast<uint8_t>((i >> 16) & 0xff);
         sp[salt.size() + 2] = static_cast<uint8_t>((i >> 8) & 0xff);
         sp[salt.size() + 3] = static_cast<uint8_t>(i & 0xff);
-        auto U = make_hmac256(pass, salt_block);
-        auto T = U;
+        Digest U, T, C;
+        init_hmac(U, pass, salt_block);
+        T = U;
         for (uint32_t j = 1; j < rounds; ++j) {
-            U = make_hmac256(pass, U);
+            C = U;
+            init_hmac(U, pass, C);
             for (int k = 0; k < 32; ++k)
                 T[k] ^= U[k]; // NOLINT
         }
         uint32_t offset = (i - 1) * 32;
-        uint32_t copy = (offset + 32 > size) ? size - offset : 32;
+        uint32_t copy = (offset + 32 > out.size()) ? out.size() - offset : 32;
         uint32_t pos = 0;
         while (copy--)
             out[offset++] = T[pos++];
     }
-    return out.set();
+    return out.fill();
 }
 } // namespace kakusu

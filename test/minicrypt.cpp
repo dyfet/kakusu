@@ -40,7 +40,7 @@ void test_hash_ring() {
 }
 
 void test_digest_stream() {
-    digest_stream<sha256_t> sha256;
+    digest_stream sha256;
     sha256 << "hello";
     auto hex = to_hex(sha256);
     sha256_digest_t verify;
@@ -48,6 +48,14 @@ void test_digest_stream() {
     auto out = verify.to_hex();
     assert(!verify.empty());
     assert(out == hex);
+}
+
+void test_pbkdf2_sha256() {
+    salt_t salt;
+    assert(init_salt(salt));
+    aes256_key_t key;
+    const std::string_view pass = "pass";
+    init_pbkdf2(key, pass, salt);
 }
 } // end namespace
 
@@ -57,6 +65,7 @@ auto main(int /* argc */, char ** /* argv */) -> int {
         test_random_keygen();
         test_hash_ring();
         test_digest_stream();
+        test_pbkdf2_sha256();
     } catch (...) {
         return -1;
     }

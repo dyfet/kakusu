@@ -41,7 +41,7 @@ public:
 
     auto operator=(const secure_array& from) noexcept -> auto& {
         if (this == &from) return *this;
-        data_ = from.data_;
+        memcpy(data_, from.data_, S);
         empty_ = from.empty_;
         return *this;
     }
@@ -64,6 +64,9 @@ public:
     constexpr auto data() noexcept -> std::byte * { return data_; };
     constexpr auto size() const noexcept { return S; };
     constexpr auto empty() const noexcept { return empty_; }
+
+    auto operator[](std::size_t i) noexcept -> std::byte& { return data_[i]; }
+    auto operator[](std::size_t i) const noexcept -> const std::byte& { return data_[i]; }
 
     auto operator==(const secure_array& other) const noexcept {
         if (other.empty_ != empty_) return false;

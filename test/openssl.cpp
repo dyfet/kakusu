@@ -40,7 +40,7 @@ void test_hash_ring() {
 }
 
 void test_digest_stream() {
-    digest_stream<sha256_t> sha256;
+    digest_stream sha256;
     sha256 << "hello";
     auto hex = to_hex(sha256);
     sha256_digest_t verify;

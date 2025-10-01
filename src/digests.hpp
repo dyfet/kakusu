@@ -101,9 +101,9 @@ private:
 };
 
 #if defined(KAKUSU_CRYPTO_WOLFSSL)
-class sha256_t final : public streambuf<wc_Sha256, WC_SHA256_DIGEST_SIZE> {
+class sha256_stream_t final : public streambuf<wc_Sha256, WC_SHA256_DIGEST_SIZE> {
 public:
-    sha256_t() : streambuf() { finished_ = wc_InitSha256(&ctx_) != 0; }
+    sha256_stream_t() : streambuf() { finished_ = wc_InitSha256(&ctx_) != 0; }
 
 private:
     auto update(std::size_t size) -> bool final {
@@ -126,9 +126,9 @@ private:
 };
 
 #elif defined(KAKUSU_CRYPTO_MINICRYPT)
-class sha256_t final : public streambuf<mc_sha256_ctx, MC_SHA256_DIGEST_SIZE> {
+class sha256_stream_t final : public streambuf<mc_sha256_ctx, MC_SHA256_DIGEST_SIZE> {
 public:
-    sha256_t() : streambuf() { mc_sha256_init(&ctx_); }
+    sha256_stream_t() : streambuf() { mc_sha256_init(&ctx_); }
 
 private:
     auto update(std::size_t size) -> bool final {
@@ -138,9 +138,9 @@ private:
     auto finish() -> bool final { return mc_sha256_final(&ctx_, out()) == 0; }
 };
 #elif defined(KAKUSU_CRYPTO_OPENSSL)
-class sha256_t final : public streambuf<EVP_MD_CTX *, 32> {
+class sha256_stream_t final : public streambuf<EVP_MD_CTX *, 32> {
 public:
-    sha256_t() {
+    sha256_stream_t() {
         ctx_ = EVP_MD_CTX_create();
         if (!ctx_) {
             finished_ = true;
@@ -150,7 +150,7 @@ public:
         finished_ = EVP_DigestInit_ex(ctx_, EVP_sha256(), nullptr) == 0;
     }
 
-    ~sha256_t() final {
+    ~sha256_stream_t() final {
         if (ctx_) EVP_MD_CTX_destroy(ctx_);
     }
 
@@ -211,7 +211,7 @@ public:
 template <typename T>
 inline constexpr bool is_streambuf_v = is_streambuf<T>::value;
 
-template <typename B, typename = std::enable_if_t<is_streambuf_v<B>>>
+template <typename B = sha256_stream_t, typename = std::enable_if_t<is_streambuf_v<B>>>
 class digest_stream : public std::iostream {
 public:
     digest_stream() : std::iostream(&buf_) {}
