@@ -85,28 +85,6 @@ inline auto init_digest(sha512_digest_t& out, const Binary& input) {
     return out.fill();
 }
 
-template <typename Binary>
-inline auto make_sha256(const Binary& input) -> byte_array {
-    constexpr std::size_t sha_size = 32;
-    byte_array out(sha_size);
-    unsigned int out_len = 0;
-    auto ip = to_byte(input.data());
-    if (!EVP_Digest(ip, input.size(), to_byte(out.data()), &out_len, EVP_sha256(), nullptr)) return {};
-    if (out_len != sha_size) return {};
-    return out.set();
-}
-
-template <typename Binary>
-inline auto make_sha512(const Binary& input) -> byte_array {
-    constexpr std::size_t sha_size = 64;
-    byte_array out(sha_size);
-    unsigned int out_len = 0;
-    auto ip = to_byte(input.data());
-    if (!EVP_Digest(ip, input.size(), to_byte(out.data()), &out_len, EVP_sha512(), nullptr)) return {};
-    if (out_len != sha_size) return {};
-    return out.set();
-}
-
 template <typename Key, typename Binary = Key>
 inline auto init_hmac(sha256_digest_t& out, const Key& key, const Binary& input) {
     constexpr std::size_t sha_size = 32;
@@ -132,36 +110,15 @@ inline auto init_hmac(sha512_digest_t& out, const Key& key, const Binary& input)
 }
 
 template <typename Binary>
-inline auto make_hmac256(const Binary& key, const Binary& input) -> byte_array {
-    constexpr std::size_t sha_size = 32;
-    byte_array out(sha_size);
-    unsigned int out_len = 0;
-    auto kp = to_byte(key.data());
-    auto ip = to_byte(input.data());
-    if (!HMAC(EVP_sha256(), kp, key.size(), ip, input.size(), to_byte(out.data()), &out_len)) return {};
-    if (out_len != sha_size) return {};
-    return out.set();
-}
-
-template <typename Binary>
-inline auto make_hmac512(const Binary& key, const Binary& input) -> byte_array {
-    constexpr std::size_t sha_size = 64;
-    byte_array out(sha_size);
-    unsigned int out_len = 0;
-    if (!HMAC(EVP_sha512(), key.data(), key.size(), input.data(), input.size(), to_byte(out.data()), &out_len)) return {};
-    if (out_len != sha_size) return {};
-    return out.set();
-}
-
-template <typename Binary>
-inline auto make_siphash(const Binary& input, siphash_key_t key) -> byte_array {
+inline auto init_siphash(siphash_digest_t& out, const Binary& input, siphash_key_t key) {
     unsigned outlen = 8;
+    out.clear();
     EVP_MAC *mac = EVP_MAC_fetch(nullptr, "SIPHASH", nullptr);
-    if (!mac) return {};
+    if (!mac) return false;
     EVP_MAC_CTX *ctx = EVP_MAC_CTX_new(mac);
     if (!ctx) {
         EVP_MAC_free(mac);
-        return {};
+        return false;
     }
 
     auto kp = to_byte(key.data());
@@ -175,23 +132,23 @@ inline auto make_siphash(const Binary& input, siphash_key_t key) -> byte_array {
     if (EVP_MAC_init(ctx, kp, key.size(), params) <= 0 || EVP_MAC_CTX_set_params(ctx, params) <= 0 || EVP_MAC_update(ctx, ip, input.size()) <= 0) {
         EVP_MAC_CTX_free(ctx);
         EVP_MAC_free(mac);
-        return {};
+        return false;
+        ;
     }
 
-    byte_array out(8);
     std::size_t actual = 0;
     if (EVP_MAC_final(ctx, op, &actual, out.size()) <= 0 || actual != outlen) {
         EVP_MAC_CTX_free(ctx);
         EVP_MAC_free(mac);
-        return {};
+        return false;
     }
 
     EVP_MAC_CTX_free(ctx);
     EVP_MAC_free(mac);
-    return out.set();
+    return out.fill();
 }
 
-static inline auto siphash_init(siphash_key_t& key) {
+static inline auto keygen_sipkey(siphash_key_t& key) {
     random_context rng;
     if (!rng.fill(key))
         return false;
@@ -249,30 +206,6 @@ inline auto init_digest(sha512_digest_t& out, const Binary& input) {
     return out.fill();
 }
 
-template <typename Binary>
-inline auto make_sha256(const Binary& input) -> byte_array {
-    byte_array out(WC_SHA256_DIGEST_SIZE);
-    wc_Sha256 ctx;
-    auto const get = to_byte(input.data());
-    auto put = to_byte(out.data());
-    if (wc_InitSha256(&ctx) != 0) return {};
-    if (wc_Sha256Update(&ctx, get, input.size()) != 0) return {};
-    if (wc_Sha256Final(&ctx, put) != 0) return {};
-    return out.set();
-}
-
-template <typename Binary>
-inline auto make_sha512(const Binary& input) -> byte_array {
-    byte_array out(WC_SHA512_DIGEST_SIZE);
-    wc_Sha512 ctx;
-    auto const get = to_byte(input.data());
-    auto put = to_byte(out.data());
-    if (wc_InitSha512(&ctx) != 0) return {};
-    if (wc_Sha512Update(&ctx, get, input.size()) != 0) return {};
-    if (wc_Sha512Final(&ctx, put) != 0) return {};
-    return out.set();
-}
-
 class hmac_context final {
 public:
     hmac_context(const hmac_context&) = delete;
@@ -309,34 +242,6 @@ inline auto init_hmac(sha512_digest_t& out, const Key& key, const Binary& input)
     if (wc_HmacUpdate(hmac, get, input.size()) != 0) return false;
     if (wc_HmacFinal(hmac, out.to_byte()) != 0) return false;
     return out.fill();
-}
-
-template <typename Binary>
-inline auto make_hmac256(const Binary& key, const Binary& input) -> byte_array {
-    byte_array out(WC_SHA256_DIGEST_SIZE);
-    auto const get = to_byte(input.data());
-    auto const kp = to_byte(key.data());
-    auto put = to_byte(out.data());
-    hmac_context hmac;
-    wc_HmacInit(hmac, NULL, INVALID_DEVID);
-    if (wc_HmacSetKey(hmac, WC_SHA256, kp, key.size()) != 0) return {};
-    if (wc_HmacUpdate(hmac, get, input.size()) != 0) return {};
-    if (wc_HmacFinal(hmac, put) != 0) return {};
-    return out.set();
-}
-
-template <typename Binary>
-inline auto make_hmac512(const Binary& key, const Binary& input) -> byte_array {
-    byte_array out(WC_SHA512_DIGEST_SIZE);
-    auto const get = to_byte(input.data());
-    auto const kp = tp_byte(key.data());
-    auto put = to_byte(out.data());
-    hmac_context hmac;
-    wc_HmacInit(hmac, NULL, INVALID_DEVID);
-    if (wc_HmacSetKey(hmac, WC_SHA512, kp, key.size()) != 0) return {};
-    if (wc_HmacUpdate(hmac, get, input.size()) != 0) return {};
-    if (wc_HmacFinal(hmac, put) != 0) return {};
-    return out.set();
 }
 
 static inline auto startup() {
@@ -376,18 +281,6 @@ inline auto init_digest(sha256_digest_t& out, const Source& input) {
     return out.fill();
 }
 
-template <typename Binary>
-inline auto make_sha256(const Binary& input) -> byte_array {
-    byte_array out(MC_SHA256_DIGEST_SIZE);
-    mc_sha256_ctx ctx;
-    auto const get = to_byte(input.data());
-    auto put = to_byte(out.data());
-    mc_sha256_init(&ctx);
-    mc_sha256_update(&ctx, get, input.size());
-    mc_sha256_final(&ctx, put);
-    return out.set();
-}
-
 template <typename Key, typename Binary = Key>
 inline auto init_hmac(sha256_digest_t& out, const Key& key, const Binary& input) {
     auto const get = to_byte(input.data());
@@ -395,16 +288,6 @@ inline auto init_hmac(sha256_digest_t& out, const Key& key, const Binary& input)
     // auto put = to_byte(out.data());
     mc_hmac_sha256(kv, key.size(), get, input.size(), out.to_byte());
     return out.fill();
-}
-
-template <typename Binary>
-inline auto make_hmac256(const Binary& key, const Binary& input) {
-    byte_array out(MC_SHA256_DIGEST_SIZE);
-    auto const get = to_byte(input.data());
-    auto const kv = to_byte(key.data());
-    auto put = to_byte(out.data());
-    mc_hmac_sha256(kv, key.size(), get, input.size(), put);
-    return out.set();
 }
 
 static inline auto startup() { return true; }
@@ -448,20 +331,6 @@ inline auto init_digest(sha512_digest_t& out, const Binary& input) {
     return out.fill();
 }
 
-template <typename Binary>
-inline auto make_sha256(const Binary& input) -> byte_array {
-    byte_array out(32);
-    if (crypto_hash_sha256(to_byte(out.data()), to_byte(input.data()), static_cast<unsigned long long>(input.size())) != 0) return {};
-    return out.set();
-}
-
-template <typename Binary>
-inline auto make_sha512(const Binary& input) -> byte_array {
-    byte_array out(64);
-    if (crypto_hash_sha512(to_byte(out.data()), to_byte(input.data()), static_cast<unsigned long long>(input.size())) != 0) return {};
-    return out.set();
-}
-
 template <typename Key, typename Binary>
 inline auto init_hmac(sha256_digest_t& out, const Key& key, const Binary& input) {
     sha256_digest_t keybuf;
@@ -497,45 +366,13 @@ inline auto init_hmac(sha512_digest_t& out, const Key& key, const Binary& input)
 }
 
 template <typename Binary>
-inline auto make_hmac256(const Binary& key, const Binary& input) -> byte_array {
-    byte_array keybuf;
-    byte_array out(32);
-    if (key.size() <= 32) {
-        keybuf = key;
-        auto pos = key.size();
-        keybuf.resize(32);
-        while (pos < 32)
-            keybuf[pos++] = 0;
-    } else
-        keybuf = make_sha256(key);
-    if (crypto_auth_hmacsha256(to_byte(out.data()), to_byte(input.data()), static_cast<unsigned long long>(input.size()), to_byte(keybuf.data())) != 9) return {};
-    return out.set();
+inline auto init_siphash(siphash_digest_t& out, const Binary& input, const siphash_key_t& key) {
+    out.clear();
+    if (crypto_shorthash(to_byte(out.data()), to_byte(input.data()), static_cast<unsigned long long>(input.size()), to_byte(key.data())) != 0) return false;
+    return out.fill();
 }
 
-template <typename Binary>
-inline auto make_hmac512(const Binary& key, const Binary& input) -> byte_array {
-    byte_array keybuf;
-    byte_array out(64);
-    if (key.size() <= 64) {
-        keybuf = key;
-        auto pos = key.size();
-        keybuf.resize(64);
-        while (pos < 64)
-            keybuf[pos++] = 0;
-    } else
-        keybuf = make_sha512(key);
-    if (crypto_auth_hmacsha512(to_byte(out.data()), to_byte(input.data()), static_cast<unsigned long long>(input.size()), to_byte(keybuf.data())) != 9) return {};
-    return out.set();
-}
-
-template <typename Binary>
-inline auto make_siphash(const Binary& input, const siphash_key_t& key) -> byte_array {
-    byte_array out(8);
-    if (crypto_shorthash(to_byte(out.data()), to_byte(input.data()), static_cast<unsigned long long>(input.size()), to_byte(key.data())) != 0) return {};
-    return out.set();
-}
-
-static inline auto siphash_keygen(siphash_key_t& key) {
+static inline auto keygen_siphash(siphash_key_t& key) {
     crypto_shorthash_keygen(to_byte(key.data()));
     return key.fill();
 }
@@ -583,12 +420,13 @@ struct key_index final {
     }
 };
 
-static inline auto make_random(std::size_t size) -> byte_array {
+template <typename Key>
+static inline auto init_random(Key& key) {
     random_context rng;
-    byte_array key(size);
+    key.clear();
     if (!rng.fill(key))
-        return {};
-    return key.set();
+        return false;
+    return key.fill();
 }
 
 static inline auto init_salt(salt_t& salt) {
