@@ -75,22 +75,25 @@ public:
         return memcmp(data_, other.data_, S) != 0;
     }
 
-    auto operator^=(const secure_array& other) noexcept {
+    auto operator^=(const secure_array& other) noexcept -> secure_array& {
         for (unsigned pos = 0; pos < S; ++pos) {
             data_[pos] ^= other.data_[pos];
         }
+        return *this;
     }
 
-    auto operator&=(const secure_array& other) noexcept {
+    auto operator&=(const secure_array& other) noexcept -> secure_array& {
         for (unsigned pos = 0; pos < S; ++pos) {
             data_[pos] &= other.data_[pos];
         }
+        return *this;
     }
 
-    auto operator|=(const secure_array& other) noexcept {
+    auto operator|=(const secure_array& other) noexcept -> secure_array& {
         for (unsigned pos = 0; pos < S; ++pos) {
             data_[pos] |= other.data_[pos];
         }
+        return *this;
     }
 
     auto to_byte() noexcept {
