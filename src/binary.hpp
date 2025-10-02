@@ -65,9 +65,6 @@ public:
     constexpr auto size() const noexcept { return S; };
     constexpr auto empty() const noexcept { return empty_; }
 
-    auto operator[](std::size_t i) noexcept -> std::byte& { return data_[i]; }
-    auto operator[](std::size_t i) const noexcept -> const std::byte& { return data_[i]; }
-
     auto operator==(const secure_array& other) const noexcept {
         if (other.empty_ != empty_) return false;
         return memcmp(data_, other.data_, S) == 0;
@@ -115,6 +112,17 @@ public:
             out.push_back(hex[val & 0x0f]);
         }
         return out;
+    }
+
+    // memory safe copy so we can remove [] operators
+    template <typename Binary>
+    auto merge(std::size_t offset, const Binary& from) -> std::size_t {
+        if (offset >= S || from.size() < 1) return 0;
+        std::size_t count = from.size();
+        if (count + offset > S)
+            count = S - offset;
+        memcpy(data_, from.data(), count);
+        return count;
     }
 
     auto fill(bool flag = true) noexcept {

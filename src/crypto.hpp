@@ -436,7 +436,7 @@ static inline auto init_salt(salt_t& salt) {
 
 template <typename Key, typename Digest = sha256_digest_t>
 static inline auto init_pbkdf2(Key& out, std::string_view pass, const salt_t& salt, uint32_t rounds = 50000) {
-    using salt_block_t = secure_array<salt.size() + 4>;
+    using salt_block_t = secure_array<20>;
     salt_block_t salt_block;
     out.clear();
     const uint32_t block_count = (out.size() + 31) / 32;
@@ -455,11 +455,7 @@ static inline auto init_pbkdf2(Key& out, std::string_view pass, const salt_t& sa
             init_hmac(U, pass, C);
             T ^= U;
         }
-        uint32_t offset = (i - 1) * 32;
-        uint32_t copy = (offset + 32 > out.size()) ? out.size() - offset : 32;
-        uint32_t pos = 0;
-        while (copy--)
-            out[offset++] = T[pos++];
+        out.merge((i - 1) * 32, T);
     }
     return out.fill();
 }
