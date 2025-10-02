@@ -391,8 +391,8 @@ inline auto init_key(secure_array<S>& key) {
 
 template <typename Binary, typename Digest = sha256_digest_t>
 inline auto to_u64(const Binary& input) {
-    static_assert(sizeof(Digest) >= sizeof(uint64_t));
     Digest digest;
+    static_assert(digest.size() >= sizeof(uint64_t));
     if (!init_digest(digest, input)) return static_cast<uint64_t>(-1);
     uint64_t out{0};
     const auto bin = digest.to_byte();
@@ -436,7 +436,7 @@ static inline auto init_salt(salt_t& salt) {
 
 template <typename Key, typename Digest = sha256_digest_t>
 static inline auto init_pbkdf2(Key& out, std::string_view pass, const salt_t& salt, uint32_t rounds = 50000) {
-    using salt_block_t = secure_array<sizeof(salt_t) + 4>;
+    using salt_block_t = secure_array<salt.size() + 4>;
     salt_block_t salt_block;
     out.clear();
     const uint32_t block_count = (out.size() + 31) / 32;
